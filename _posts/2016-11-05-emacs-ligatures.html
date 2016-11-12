@@ -1,0 +1,47 @@
+---
+layout: post
+title: Emacs Mac Ligatures
+---
+
+<p>
+I've been using Adobe's <a href="https://github.com/adobe-fonts/source-code-pro">Source Code Pro</a> as my Emacs font for a while. I just learned about <a href="https://github.com/i-tu/Hasklig">Hasklig</a>, which adds ligatures for things like <code>-&gt;</code> and <code>&lt;*&gt;</code> to Source Code Pro so that the arrow would show up as →.  As a Haskell learner, I thought this would be awesome.
+</p>
+
+<p>
+Unfortunately, the Hasklig README says Emacs doesn't support ligatures.
+</p>
+
+<p>
+Oh wait, I'm using <a href="https://bitbucket.org/mituharu/emacs-mac/overview">Emacs Mac Port</a> (via <a href="https://github.com/railwaycat/homebrew-emacsmacport">railwaycat's Homebrew tap</a>), not plain vanilla Emacs, so I can just <code>(mac-auto-operator-composition-mode)</code>.  Boom. Ligatures everywhere, and it doesn't even mess up the alignment.
+</p>
+
+<p>
+(Hover over the below image to show with <code>(mac-auto-operator-composition-mode)</code> turned off.)
+</p>
+
+<style type="text/css">
+.roll .on { display: none; }
+.roll .off { display: block; }
+.roll:hover .on { display: block; }
+.roll:hover .off { display: none;
+</style>
+<div class="roll">
+<img src="/assets/2016-11-05-emacs-ligatures.png"
+alt="" align="left"
+title="Emacs ligatures"
+class="off"
+</img>
+<img src="/assets/2016-11-05-emacs-no-ligatures.png"
+alt="" align="left"
+title="Emacs ligatures"
+class="on"
+</img>
+</div>
+
+<p>
+This change has improved my programming ability by exactly 0%.
+</p>
+
+<p>
+(By the way, I'm enjoying <a href="http://homepages.inf.ed.ac.uk/wadler/papers/marktoberdorf/baastad.pdf">Monads for functional programming</a>, which has been surprisingly readable.)
+</p>
