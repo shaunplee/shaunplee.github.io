@@ -1,0 +1,655 @@
+---
+layout: post
+title: Setting up WPA2-Enterprise at home with a Raspberry Pi
+---
+<p>
+While reading about the <a href="https://www.krackattacks.com">WPA2-Personal crack</a>, I heard that WPA2-Enterprise isn't affected by the security flaw and thought I'd try to switch my home network over.
+</p>
+
+<p>
+This post documents my efforts in reconciling multiple tutorials, which have been great, but subtly out of date or missing steps. The primary reference was this great <a href="http://www.binaryheartbeat.net/2013/12/raspberry-pi-based-freeradius-server.html">tutorial</a> by Jurgens Krause, although some steps had to be updated based on searching the official docs of the various pieces of software we're integrating.
+</p>
+
+
+<div id="outline-container-sec-1" class="outline-2">
+<h2 id="sec-1">The problem</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+The key component for getting WPA2-Enterprise running is a RADIUS server to authenticate connecting clients.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2" class="outline-2">
+<h2 id="sec-2">The plan</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+<a href="https://www.dd-wrt.com/wiki/index.php/Asus_RT-N66U">DD-WRT</a> support for my router (the Asus RT-N66U), seemed to be more of a hack than for most other routers, and <a href="https://www.dd-wrt.com/wiki/index.php/How_to_configure_DD-WRT,_Chillispot,_Apache2,_FreeRadius,_freeradius-dialupadmin,_and_MySQL_on_Debian_4.0">running RADIUS on the router</a> seemed like even more of a hack. I love a good hack, but maybe not for something I rely on every day.
+</p>
+
+<p>
+Instead, let's set up a Raspberry Pi as a RADIUS server, which seems only a little less hack-y.
+</p>
+</div>
+
+<div id="outline-container-sec-2-1" class="outline-3">
+<h3 id="sec-2-1">WARNING and DISCLAIMER</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+I've reconstructed these steps from my recollection and command history. These instructions may be incomplete and inaccurate, may result in an inoperable configuration. Please take steps to ensure you don't end up completely unable to connect to your network. For example, if your router lets you set up multiple networks, switch only one over to WPA2-Enterprise so that you can still configure your router and such through your other network, or make sure that you have a computer that can connect to the router over Ethernet.
+</p>
+
+<p>
+As consistent with the title of this blog, I have no idea what I'm doing and probably won't know how to diagnose or fix problems that you encounter when trying to set this up.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-3" class="outline-2">
+<h2 id="sec-3">Materials</h2>
+<div class="outline-text-2" id="text-3">
+<ul class="org-ul">
+<li><a href="https://www.amazon.com/gp/product/B01CD5VC92/ref=oh_aui_detailpage_o04_s00?ie=UTF8&psc=1">Raspberry Pi 3</a> ($35)
+</li>
+<li><a href="https://www.amazon.com/gp/product/B06XWN9Q99/ref=oh_aui_detailpage_o03_s00?ie=UTF8&psc=1">Micro SD Card</a> ($13)
+</li>
+<li><a href="https://www.amazon.com/gp/product/B01CDVSBPO/ref=oh_aui_detailpage_o00_s00?ie=UTF8&psc=1">case</a> ($8)
+</li>
+<li>USB power adapter (had one lying around)
+</li>
+<li>Micro USB cable (had one lying around)
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-sec-4" class="outline-2">
+<h2 id="sec-4">Setting up the Raspberry Pi</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+For expediency, I defaulted to <a href="https://www.raspberrypi.org/downloads/raspbian/">Raspbian</a> Stretch Lite for the operating system. (This is a total lie. I first tried <a href="https://wiki.freebsd.org/FreeBSD/arm/Raspberry%20Pi">FreeBSD</a>, but couldn't get it to boot.)
+</p>
+
+<p>
+Following the official <a href="https://www.raspberrypi.org/documentation/installation/installing-images/README.md">installation guide</a>, I flashed the Raspbian image onto the MicroSD card using <a href="https://etcher.io/">Etcher</a>.
+</p>
+
+<p>
+Pop the SD card into the Raspberry Pi, connect the Pi to the router with an Ethernet cable, plug in my monitor to the HDMI port, and a keyboard into one of the USB ports.
+</p>
+
+<p>
+Plug in the USB power.
+</p>
+
+<p>
+Yay, it boots.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-5" class="outline-2">
+<h2 id="sec-5">Configuring Raspbian</h2>
+<div class="outline-text-2" id="text-5">
+</div><div id="outline-container-sec-5-1" class="outline-3">
+<h3 id="sec-5-1">Login password</h3>
+<div class="outline-text-3" id="text-5-1">
+<p>
+On Raspbian, the default username is <code>pi</code> and the default password is <code>raspberry</code>.
+</p>
+
+<p>
+I logged in and first changed the password:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ passwd
+Changing password for pi.
+(current) UNIX password:
+Enter new UNIX password:
+Retype new UNIX password:
+passwd: password updated successfully
+pi@raspberrypi:~ $
+</pre>
+</div>
+</div>
+
+<div id="outline-container-sec-5-2" class="outline-3">
+<h3 id="sec-5-2">Keyboard</h3>
+<div class="outline-text-3" id="text-5-2">
+<p>
+Raspbian comes with the keyboard set to a UK layout, which I'm just not used to. (I noticed when I tried to type the <code>#</code> character and a <code>£</code> came out). I ended up changing it to a US layout:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo dpkg-reconfigure keyboard-configuration
+</pre>
+</div>
+</div>
+
+<div id="outline-container-sec-5-3" class="outline-3">
+<h3 id="sec-5-3">Network</h3>
+<div class="outline-text-3" id="text-5-3">
+<p>
+Let's set a static IP for this new server, so that the router will have a consistent place to look for this thing. Since the router is currently set to distribute IP addresses in the range <code>192.168.1.100 - 192.168.1.254</code>, I can give this new server the IP address 192.168.1.2 without worrying about interfering with the DHCP server.
+</p>
+
+<p>
+Apparently, the way to configure IP addresses is in <code>/etc/dhcpcd.conf</code> rather than manually entering a configuration into <code>/etc/network/interfaces</code>. I ended up just uncommenting and tweaking the example in <code>/etc/dhcpcd.conf</code>:
+</p>
+
+<pre class="example">
+# Example static IP configuration:
+interface eth0
+static ip_address=192.168.1.2/24
+static routers=192.168.1.1
+static domain_name_servers=192.168.1.1 8.8.8.8
+</pre>
+
+<p>
+<code>sudo reboot</code> to see if the IP address gets set properly on cold boot. It is.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-5-4" class="outline-3">
+<h3 id="sec-5-4">Software updates</h3>
+<div class="outline-text-3" id="text-5-4">
+<p>
+Let's update / upgrade our packages:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo apt update
+</pre>
+<p>
+then
+</p>
+<pre class="example">
+pi@raspberrypi:~ $ sudo apt upgrade
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-6" class="outline-2">
+<h2 id="sec-6">Installing FreeRadius and DaloRadius</h2>
+<div class="outline-text-2" id="text-6">
+<p>
+With all of that setup out of the way, we can now install a RADIUS server. <a href="http://freeradius.org">FreeRadius</a> seems to the one that is currently best maintained (and also the one used in Krause's tutorial), so let's go with that.
+</p>
+</div>
+
+<div id="outline-container-sec-6-1" class="outline-3">
+<h3 id="sec-6-1">FreeRadius</h3>
+<div class="outline-text-3" id="text-6-1">
+<p>
+Krause's tutorial sets up FreeRadius with a MySQL database to store the user credentials, so we'll also need to install MySQL:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo apt install freeradius freeradius-mysql mysql-server mysql-client
+</pre>
+
+
+<p>
+We can test the FreeRadius installation by temporarily enabling one of the test users in <code>/etc/freeradius/3.0/users</code>:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /etc/freeradius/3.0/users
+</pre>
+
+<p>
+Find the lines:
+</p>
+
+<pre class="example">
+#
+# The canonical testing user which is in most of the
+# examples.
+#
+#bob    Cleartext-Password := "hello"
+#       Reply-Message := "Hello, %{User-Name}"
+</pre>
+
+<p>
+and uncomment <code>bob</code>'s configuration:
+</p>
+
+<pre class="example">
+#
+# The canonical testing user which is in most of the
+# examples.
+#
+bob     Cleartext-Password := "hello"
+        Reply-Message := "Hello, %{User-Name}"
+</pre>
+
+<p>
+Save the changes (<code>Ctrl-O</code> for "Write Out" in <code>nano</code>) and exit (<code>Ctrl-X</code>).
+</p>
+
+<p>
+Then we'll stop and restart the freeradius server in debug mode:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo service freeradius stop
+pi@raspberrypi:~ $ sudo freeradius -X
+</pre>
+
+<p>
+Let's open another terminal window (<code>Ctrl-Alt-F2</code>), login with the same <code>pi</code> username, and test out the server:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ radtest bob hello 127.0.0.1 0 testing123
+Sent Access-Request Id 183 from 0.0.0.0:51430 to 127.0.0.1:1812 length 73
+	User-Name = "bob"
+	User-Password = "hello"
+	NAS-IP-Address = 127.0.1.1
+	NAS-Port = 0
+	Message-Authenticator = 0x00
+	Cleartext-Password = "hello"
+Received Access-Accept Id 183 from 127.0.0.1:1812 to 0.0.0.0:0 length 32
+	Reply-Message = "Hello, bob"
+</pre>
+
+<p>
+If that worked, then the FreeRadius server is working. If so, switch back to the first console (<code>Ctrl-Alt-F1</code>) and kill the server in debug mode (<code>Ctrl-C</code>). Then we can restart the FreeRadius server:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo service freeradius start
+</pre>
+
+<p>
+(You might also want to go back into the <code>/etc/freeradius/3.0/users</code> and comment out the lines for user <code>bob</code>.)
+</p>
+
+<p>
+Now that we know it works, let's make sure that the Raspberry Pi starts the <code>freeradius</code> server on boot:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo systemctl enable freeradius
+</pre>
+</div>
+</div>
+
+<div id="outline-container-sec-6-2" class="outline-3">
+<h3 id="sec-6-2">DaloRadius</h3>
+<div class="outline-text-3" id="text-6-2">
+<p>
+We'll also install the DaloRadius web interface for configuring and monitoring FreeRadius. DaloRadius needs a web server and php installed:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo apt install apache2 php libapache2-mod-php php-pear php-mysql php-gd php-db
+</pre>
+
+<p>
+DaloRadius is not available via the Debian repositories, and the <a href="https://sourceforge.net/projects/daloradius/">latest version on SourceForge</a> was uploaded in October 2014, so I opted to install what seems to be the <a href="https://github.com/lirantal/daloradius">current version on Github</a>. But to do that, I first need to install <code>git</code>.
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo apt install git
+</pre>
+
+<p>
+and now:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ git clone https://github.com/lirantal/daloradius.git
+Cloning into 'daloradius'...
+remote: Counting objects: 13858, done.
+remote: Total 13858 (delta 0), reused 0 (delta 0), pack-reused 13858
+Receiving objects: 100% (13858/13858), 8.81 MiB | 5.77 MiB/s, done.
+Resolving deltas: 100% (9279/9279), done.
+pi@raspberrypi:~ $
+</pre>
+
+<p>
+This leaves a <code>daloradius</code> directory in your home directory. Let's move this to where the web server can see it, and also give ownership to the <code>www-data</code> user:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo mv daloradius /var/www/html/
+pi@raspberrypi:~ $ cd /var/www/html
+pi@raspberrypi:~ $ sudo chown -R www-data:www-data /var/www/html/daloradius/
+</pre>
+
+<p>
+You can check to see if apache is configured properly by visiting your Raspberry Pi's IP address in a web browser (e.g., <code>http://192.168.1.2</code>). Hopefully you'll see a web page titled "Apache 2 Debian Default Page".
+</p>
+</div>
+</div>
+</div>
+
+
+<div id="outline-container-sec-7" class="outline-2">
+<h2 id="sec-7">Configuring FreeRadius, DaloRadius, and MySQL</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+Let's start by setting up the database for use with FreeRadius and DaloRadius. We'll import a template from DaloRadius:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo su
+root@raspberrypi:~# mysql -uroot -p
+mysql&gt;create database radiusdb;
+mysql&gt;exit
+mysql -u root -p radiusdb &lt; /var/www/html/daloradius/contrib/db/fr2-mysql-daloradius-and-freeradius.sql
+mysql -u root -p
+mysql&gt;CREATE USER 'radiususer'@'localhost';
+mysql&gt;SET PASSWORD FOR 'radiususer'@'localhost' = PASSWORD('radiuspass');
+mysql&gt;GRANT ALL ON radiusdb.* to 'radiususer'@'localhost';
+mysql&gt;exit
+root@raspberrypi:~# exit
+pi@raspberrypi:~ $
+</pre>
+
+<p>
+If you want, you can choose your own database username and password in place of <code>radiususer</code> and <code>radiuspass</code>.
+</p>
+
+<p>
+We'll also configure DaloRadius to connect to the database. Edit <code>/var/www/html/daloradius/library/daloradius.conf.php</code>
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /var/www/html/daloradius/library/daloradius.conf.php
+</pre>
+
+<p>
+and edit the matching lines:
+</p>
+
+<pre class="example">
+$configValues['DALORADIUS_VERSION'] = '0.9-9';
+$configValues['FREERADIUS_VERSION'] = '3';
+$configValues['CONFIG_DB_ENGINE'] = 'mysqli';
+$configValues['CONFIG_DB_HOST'] = 'localhost';
+$configValues['CONFIG_DB_PORT'] = '3306';
+$configValues['CONFIG_DB_USER'] = 'radiususer';
+$configValues['CONFIG_DB_PASS'] = 'radiuspass';
+$configValues['CONFIG_DB_NAME'] = 'radiusdb';
+</pre>
+
+<p>
+leaving the rest at their default settings.
+</p>
+
+<p>
+Now let's configure FreeRadius to use the MySQL database. Edit the <code>/etc/freeradius/3.0/mods-available/sql</code> file using nano:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /etc/freeradius/3.0/mods-available/sql
+</pre>
+
+<p>
+And change the <code>driver</code> line to:
+</p>
+
+<pre class="example">
+sql {
+        # The sub-module to use to execute queries. This should match
+        # the database you're attempting to connect to.
+        #
+        #    * rlm_sql_mysql
+    	#    * rlm_sql_mssql
+        #    * rlm_sql_oracle
+        #    * rlm_sql_postgresql
+        #    * rlm_sql_sqlite
+        #    * rlm_sql_null (log queries to disk)
+        #
+        driver = "rlm_sql_mysql"
+</pre>
+
+<p>
+Farther down, set the "dialect" to "mysql" and also enter the database user settings under "Connection info":
+</p>
+
+<pre class="example">
+    # The dialect of SQL you want to use, this should usually match
+    # the driver you selected above.
+#
+    # If you're using rlm_sql_null, then it should be the type of
+    # database the logged queries are going to be executed against.
+    dialect = "mysql"
+
+    # Connection info:
+    #
+    server = "localhost"
+    port = 3306
+    login = "radiususer"
+    password = "radiuspass"
+
+    # Database table configuration for everything except Oracle
+    radius_db = "radiusdb"
+</pre>
+
+<p>
+Next, we'll enable the <code>sql</code> mod by adding a symlink to it in the <code>mods-enabled</code> directory:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ cd /etc/freeradius/3.0/mods-enabled
+pi@raspberrypi:/etc/freeradius/3.0/mods-enabled $ sudo ln -s ../mods-available/sql
+</pre>
+
+<p>
+Then we'll make sure that the <code>sql</code> option is used in our server configuration:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /etc/freeradius/3.0/sites-enabled/default
+</pre>
+
+<p>
+Replace all lines that read <code>-sql</code> with <code>sql</code> (use <code>Ctrl-\</code> for Replace), e.g.:
+</p>
+
+<pre class="example">
+#
+#  Look in an SQL database.  The schema of the database
+#  is meant to mirror the "users" file.
+#
+#  See "Authorization Queries" in mods-available/sql
+-sql
+</pre>
+
+<p>
+becomes:
+</p>
+<pre class="example">
+#
+#  Look in an SQL database.  The schema of the database
+#  is meant to mirror the "users" file.
+#
+#  See "Authorization Queries" in mods-available/sql
+sql
+</pre>
+
+<p>
+I think there are about 4 instances to replace.
+</p>
+
+<p>
+Save and exit.
+</p>
+
+<p>
+See if the configuration is approximately correct (i.e., look for error messages when starting the debug server:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo service freeradius stop
+pi@raspberrypi:~ $ sudo freeradius -X
+</pre>
+
+<p>
+Everything good? Then kill the debug server again (<code>Ctrl-C</code>) and restart the freeradius service:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo service freeradius start
+</pre>
+
+<p>
+Now it's time to configure the router as a "client" of the FreeRadius server. Edit <code>/etc/freeradius/3.0/clients.conf</code>:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /etc/freeradius/3.0/clients.conf
+</pre>
+
+<p>
+I added a new client under the examples:
+</p>
+
+<pre class="example">
+client home {
+       ipaddr = 192.168.1.1
+       secret = set_your_own_secret_here
+}
+</pre>
+
+<p>
+Enter the IP address of your router in the <code>ipaddr</code> line and your own <code>secret</code> in line.
+</p>
+
+<p>
+From here, go into your router configuration (in my case <code>http://192.168.1.1</code>) and look for the RADIUS settings page. Use the Raspberry Pi's ip address as the "RADIUS Server IP Address," set the "server port" to the default <code>1812</code> and enter the secret you created and saved into <code>/etc/freeradius/3.0/clients.conf</code> as your "connection secret."
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-8" class="outline-2">
+<h2 id="sec-8">Setting passwords</h2>
+<div class="outline-text-2" id="text-8">
+<p>
+Now it's time to set up your users and passwords. Visit the DaloRadius configuration page at <code>http://&lt;your Raspberry Pi IP&gt;/daloradius</code>
+</p>
+
+<p>
+Then login with the default username <code>administrator</code> and password <code>radius</code>.
+</p>
+
+<p>
+After you've logged in, you can set the password under "Config" -&gt; "Operators" -&gt; "List Operators" -&gt; "administrator"
+</p>
+
+<p>
+Create a new user under "Management" -&gt; "Users" -&gt; "New User". The "username" and "password" will be what your clients use to connect to the WPA2-Enterprise network. Choose whatever you like. I just created one user, rather than create a separate user for everyone in the household.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-9" class="outline-2">
+<h2 id="sec-9">Connecting clients</h2>
+<div class="outline-text-2" id="text-9">
+<p>
+Ok, we should be good to go!
+</p>
+
+<p>
+Go back to your router configuration page (e.g., <code>http://192.168.1.1</code>) and change the authentication mode on your wireless network from "WPA2-Personal" to "WPA2-Enterprise".
+</p>
+
+<p>
+Your laptop will probably disconnect. When you try to reconnect, it'll prompt you for a username and password, so enter the ones that you created in the DaloRadius configuration page.
+</p>
+
+<p>
+You'll also probably get a prompt about an untrusted, certificate self-signed by "raspberrypi". Just click accept or whatever.
+</p>
+
+<p>
+That should be it, and you should be online.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-10" class="outline-2">
+<h2 id="sec-10">Other things</h2>
+<div class="outline-text-2" id="text-10">
+</div><div id="outline-container-sec-10-1" class="outline-3">
+<h3 id="sec-10-1">Power consumption</h3>
+<div class="outline-text-3" id="text-10-1">
+<p>
+Because the Raspberry Pi will be turned on 24/7 in order to provide authentication, I thought it would be good to reduce power consumption by turning some things off.
+</p>
+
+<p>
+Edit <code>/config/boot.txt</code>:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /boot/config.txt
+</pre>
+
+<p>
+To turn off the green activity LED, I added these lines:
+</p>
+<pre class="example">
+# Disable activity LEDs
+dtparam=act_led_trigger=none
+dtparam=act_led_activelow=off
+</pre>
+
+<p>
+I also have my Raspberry Pi connected to the router over Ethernet, so I don't need WiFi or Bluetooth on the Raspberry Pi:
+</p>
+
+<pre class="example">
+# disable wifi and bluetooth
+dtoverlay=pi3-disable-wifi
+dtoverlay=pi3-disable-bt
+</pre>
+
+<p>
+And I don't need audio, so I commented out the audio driver:
+</p>
+
+<pre class="example">
+# Enable audio (loads snd_bcm2835)
+# dtparam=audio=on
+</pre>
+
+<p>
+Turning off the red power LED is a little trickier and involved adding a command to the <code>/etc/rc.local</code> file:
+</p>
+
+<pre class="example">
+pi@raspberrypi:~ $ sudo nano /etc/rc.local
+</pre>
+
+<p>
+Add these lines just before the <code>exit 0</code> line:
+</p>
+
+<pre class="example">
+# turn off power LED
+echo 0 | tee /sys/class/leds/led1/brightness
+</pre>
+</div>
+</div>
+
+<div id="outline-container-sec-10-2" class="outline-3">
+<h3 id="sec-10-2">Let's Encrypt</h3>
+<div class="outline-text-3" id="text-10-2">
+<p>
+As noted above, the above setup uses a self-signed certificate. You could also use Let's Encrypt to get signed certificates. I haven't tried this yet:
+</p>
+
+<p>
+<a href="https://framebyframewifi.net/2017/01/29/use-lets-encrypt-certificates-with-freeradius/">https://framebyframewifi.net/2017/01/29/use-lets-encrypt-certificates-with-freeradius/</a>
+</p>
+</div>
+</div>
+</div>
