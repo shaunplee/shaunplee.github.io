@@ -1,0 +1,128 @@
+---
+layout: post
+title: JavaScript Development Environment
+---
+
+<p>
+These are notes on trying to develop a front-end editor text editor, at this point, using <a href="https://prosemirror.org">ProseMirror</a>.
+</p>
+
+<div id="outline-container-org680df9f" class="outline-2">
+<h2 id="org680df9f">Setting up a JavaScript development environment</h2>
+<div class="outline-text-2" id="text-org680df9f">
+<p>
+ProseMirror is set up as a bunch of separate building blocks which we'll put together from different pieces using our own glue code. The example code makes use of lots of <code class="src src-sh">import</code> statements.
+</p>
+
+<p>
+<code class="src src-sh">node</code>, <code class="src src-sh">npm</code>, and <code class="src src-sh">yarn</code> seem to be the way to handle these things, so let's install those things. <code class="src src-sh">node</code> is a JavaScript runtime that provides some I/O for letting it do things on the local machine. <a href="https://yarnpkg.com/en/">Yarn</a> is a JavaScript package manager.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">brew install node yarn
+</pre>
+</div>
+
+<p>
+To use <code class="src src-sh">yarn</code> within a project, we'll create a new directory and then run:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">yarn init
+</pre>
+</div>
+
+<p>
+Then we can add our dependencies, like the various ProseMirror modules, using <code class="src src-sh">yarn</code> without the <code class="src src-sh">global</code> modifier, e.g.:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">yarn add prosemirror-view
+</pre>
+</div>
+
+<p>
+However, in order to actually be able to use our imported dependencies in JavaScript, we will have to use something like <code class="src src-sh">webpack</code> to compile the code together. <code class="src src-sh">webpack</code> will probably also let us do things like minify the code or otherwise put it in good shape for deployment. So:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">yarn global add webpack
+</pre>
+</div>
+
+<p>
+We can run <code class="src src-sh">webpack</code> without configuration, but let's be more explicit and create a <code class="src src-sh">webpack.config.js</code> file in the root of the project:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="org1824660"><span style="color: #a020f0;">const</span> <span style="color: #a0522d;">path</span> = require(<span style="color: #8b2252;">'path'</span>)
+
+module.exports = {
+  mode: <span style="color: #8b2252;">'development'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Compiles with source maps for debugging</span>
+  entry: <span style="color: #8b2252;">'./src/index.js'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">This is the default value, added to be explicit</span>
+  output: { <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">This is the default value, added to be explicit</span>
+    path: path.resolve(__dirname, <span style="color: #8b2252;">'dist'</span>),
+    filename: <span style="color: #8b2252;">'main.js'</span>
+  },
+  resolve: {
+    modules: [ <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Specifies where to look for modules</span>
+      path.resolve(<span style="color: #8b2252;">'src'</span>),
+      <span style="color: #8b2252;">'node_modules'</span> <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">default location for yarn to install stuff</span>
+    ]
+  }
+};
+</pre>
+</div>
+
+<p>
+We could then run <code class="src src-sh">webpack</code> to compile our <code class="src src-sh">main.js</code> file from the <code class="src src-sh">index.js</code> every time, and then use something like <code class="src src-sh">python -m SimpleHTTPServer</code> to serve up our <code class="src src-sh">index.html</code> page, but running <code class="src src-sh">webpack</code> could get to be tedious.
+</p>
+
+<p>
+Instead, <code class="src src-sh">webpack-dev-server</code> can help us here:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">yarn add webpack-cli webpack-dev-server
+</pre>
+</div>
+
+<p>
+Because we left out the <code class="src src-sh">global</code> here, the <code class="src src-sh">webpack-dev-server</code> is installed only locally in the project, and therefore is run by:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">node_modules/.bin/webpack-dev-server
+</pre>
+</div>
+
+<p>
+This will start a local web server for testing and will automatically recompile the code whenever it detects a change.
+</p>
+
+<p>
+To get Emacs <a href="https://github.com/emacs-lsp/lsp-mode">lsp-mode</a> working with JavaScript, we'll need the <a href="https://github.com/theia-ide/typescript-language-server">typescript-language-server</a>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">yarn global add typescript-language-server
+</pre>
+</div>
+
+<p>
+The Emacs code for setting up JavaScript looks like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="color: #a020f0;">use-package</span> <span style="color: #008b8b;">js2-mode</span>
+  <span style="color: #483d8b;">:config</span>
+  (flycheck-mode)
+  (<span style="color: #a020f0;">setq</span> js-indent-level 2)
+  (<span style="color: #a020f0;">require</span> '<span style="color: #008b8b;">lsp</span>)
+  (add-hook 'js-mode-hook #'lsp)
+  (add-hook 'js-mode-hook 'js2-minor-mode)
+  )
+</pre>
+</div>
+</div>
+</div>
