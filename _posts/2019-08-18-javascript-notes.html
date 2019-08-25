@@ -7,9 +7,9 @@ title: JavaScript Development Environment
 These are notes on trying to develop a front-end editor text editor, at this point, using <a href="https://prosemirror.org">ProseMirror</a>.
 </p>
 
-<div id="outline-container-org680df9f" class="outline-2">
-<h2 id="org680df9f">Setting up a JavaScript development environment</h2>
-<div class="outline-text-2" id="text-org680df9f">
+<div id="outline-container-org4312695" class="outline-2">
+<h2 id="org4312695">Setting up a JavaScript development environment</h2>
+<div class="outline-text-2" id="text-org4312695">
 <p>
 ProseMirror is set up as a bunch of separate building blocks which we'll put together from different pieces using our own glue code. The example code makes use of lots of <code class="src src-sh">import</code> statements.
 </p>
@@ -55,15 +55,16 @@ We can run <code class="src src-sh">webpack</code> without configuration, but le
 </p>
 
 <div class="org-src-container">
-<pre class="src src-js" id="org1824660"><span style="color: #a020f0;">const</span> <span style="color: #a0522d;">path</span> = require(<span style="color: #8b2252;">'path'</span>)
+<pre class="src src-js" id="org33e2b63"><span style="color: #a020f0;">const</span> <span style="color: #a0522d;">path</span> = require(<span style="color: #8b2252;">'path'</span>)
 
 module.exports = {
-  mode: <span style="color: #8b2252;">'development'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Compiles with source maps for debugging</span>
+  mode: <span style="color: #8b2252;">'development'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Compiles with development settings</span>
   entry: <span style="color: #8b2252;">'./src/index.js'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">This is the default value, added to be explicit</span>
   output: { <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">This is the default value, added to be explicit</span>
     path: path.resolve(__dirname, <span style="color: #8b2252;">'dist'</span>),
     filename: <span style="color: #8b2252;">'main.js'</span>
   },
+  devtool: <span style="color: #8b2252;">'inline-source-map'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Compile with source maps</span>
   resolve: {
     modules: [ <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Specifies where to look for modules</span>
       path.resolve(<span style="color: #8b2252;">'src'</span>),
@@ -75,7 +76,7 @@ module.exports = {
 </div>
 
 <p>
-We could then run <code class="src src-sh">webpack</code> to compile our <code class="src src-sh">main.js</code> file from the <code class="src src-sh">index.js</code> every time, and then use something like <code class="src src-sh">python -m SimpleHTTPServer</code> to serve up our <code class="src src-sh">index.html</code> page, but running <code class="src src-sh">webpack</code> could get to be tedious.
+We could then run <code class="src src-sh">webpack</code> to compile our <code class="src src-sh">main.js</code> file from the <code class="src src-sh">index.js</code> every time, and then use something like <code class="src src-sh">python -m SimpleHTTPServer</code> to serve up our <code class="src src-sh">./dist/index.html</code> page, but running <code class="src src-sh">webpack</code> could get to be tedious.
 </p>
 
 <p>
@@ -84,6 +85,36 @@ Instead, <code class="src src-sh">webpack-dev-server</code> can help us here:
 
 <div class="org-src-container">
 <pre class="src src-sh">yarn add webpack-cli webpack-dev-server
+</pre>
+</div>
+
+<p>
+We'll also update the configuration to use this development server:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-js" id="orgda2bf8f"><span style="color: #a020f0;">const</span> <span style="color: #a0522d;">path</span> = require(<span style="color: #8b2252;">'path'</span>)
+
+module.exports = {
+  mode: <span style="color: #8b2252;">'development'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Compiles with development settings</span>
+  entry: <span style="color: #8b2252;">'./src/index.js'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">This is the default value, added to be explicit</span>
+  output: { <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">This is the default value, added to be explicit</span>
+    path: path.resolve(__dirname, <span style="color: #8b2252;">'dist'</span>),
+    filename: <span style="color: #8b2252;">'main.js'</span>
+  },
+  devtool: <span style="color: #8b2252;">'inline-source-map'</span>, <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Compile with source maps</span>
+  resolve: {
+    modules: [ <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">Specifies where to look for modules</span>
+      path.resolve(<span style="color: #8b2252;">'src'</span>),
+      <span style="color: #8b2252;">'node_modules'</span> <span style="color: #b22222; font-style: italic;">// </span><span style="color: #b22222; font-style: italic;">default location for yarn to install stuff</span>
+    ]
+  },
+  devServer: {
+    contentBase: path.join(__dirname, <span style="color: #8b2252;">'dist'</span>),
+    compress: <span style="color: #008b8b;">true</span>,
+    port: 9000
+  }
+};
 </pre>
 </div>
 
@@ -97,7 +128,7 @@ Because we left out the <code class="src src-sh">global</code> here, the <code c
 </div>
 
 <p>
-This will start a local web server for testing and will automatically recompile the code whenever it detects a change.
+This will start a local web server for testing and will automatically recompile the code whenever it detects a change, and also cause the web page to automatically reload.
 </p>
 
 <p>
