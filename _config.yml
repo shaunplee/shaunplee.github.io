@@ -9,11 +9,12 @@
 title: I have no idea what I'm doing.
 email:
 description: > # this means to ignore newlines until "baseurl:"
-  &copy;2016&ndash;2019 Shaun P. Lee
+  &copy;2016&ndash;2020 Shaun P. Lee
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "http://shaunplee.github.io" # the base hostname & protocol for your site
 twitter_username: s_p_lee
 github_username:  shaunplee
+future: true
 
 # Build settings
 markdown: kramdown
