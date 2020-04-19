@@ -1,0 +1,37 @@
+---
+layout: post
+title: Dante-mode and haskell-mode in non-Stack-friendly projects
+---
+<p>
+I started reading <a href="https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/">Parallel and Concurrent Programming in Haskell</a> by Simon Marlow, which has example code in <a href="https://github.com/simonmar/parconc-examples">parconc-examples</a>. At the moment, it will only build with ghc 8.2.2, but it was easy enough to point <code class="src src-sh">stack</code> at an older LTS version that used 8.2.2.
+</p>
+
+<p>
+parconc-examples is not set up like a Stack project, because individual source code files each have their own <code class="src src-sh">main</code> function. This causes <code class="src src-sh">stack ghci</code> to complain about the ambiguity:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">The main module to load is ambiguous. Candidates are:
+1.  Package <span style="color: #8f0075;">`parconc-examples' component parconc-examples:exe:GenSamples with main-is file: /Users/shaun/workspace/parconc-examples-0.4.7/kmeans/GenSamples.hs</span>
+<span style="color: #8f0075;">.. [~ 80 more examples here]</span>
+</pre>
+</div>
+
+<p>
+However, <code class="src src-sh">stack exec ghci</code> works just fine.
+</p>
+
+<p>
+Now the problem is getting <code class="src src-sh">dante-mode</code> and <code class="src src-sh">haskell-mode</code> to use <code class="src src-sh">stack exec ghci</code> instead of the default <code class="src src-sh">stack ghci</code>.
+</p>
+
+<p>
+A <code class="src src-sh">.dir-local</code> file at the root of the <code class="src src-sh">parconc-examples</code> directory seemed like the right thing to do to keep the setup from messing with other parts of the setup. This looks like:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-emacs-lisp" id="orgafdb7e3">((dante-mode . ((dante-repl-command-line . (<span style="color: #223fbf;">"stack"</span> <span style="color: #223fbf;">"exec"</span> <span style="color: #223fbf;">"ghci"</span>))))
+ (haskell-mode . ((haskell-process-path-stack . (<span style="color: #223fbf;">"stack"</span> <span style="color: #223fbf;">"exec"</span>))
+                  (haskell-process-args-stack-ghci . (<span style="color: #223fbf;">"--"</span> <span style="color: #223fbf;">"-ferror-spans"</span>)))))
+</pre>
+</div>
