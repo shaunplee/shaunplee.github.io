@@ -12,5 +12,11 @@ On weekends, I often hike in the Angeles National Forest.
 
 Currently reading:
 - The Power Broker
+- Ray Tracing in One Weekend
+- PureScript by Example
+
+Recently read:
+- Sapiens
+- The Fated Sky
 - The Calculating Stars
 - The Whole-Brain Child
