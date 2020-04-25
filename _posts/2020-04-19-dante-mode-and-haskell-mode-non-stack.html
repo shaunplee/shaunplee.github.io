@@ -32,15 +32,10 @@ A <code class="src src-sh">.dir-local</code> file at the root of the <code class
 <div class="org-src-container">
 <pre class="src src-emacs-lisp" id="orgdf88e28">((haskell-mode . ((haskell-process-path-stack . (<span style="color: #223fbf;">"stack"</span> <span style="color: #223fbf;">"exec"</span>))
                   (haskell-process-args-stack-ghci . (<span style="color: #223fbf;">"--"</span> <span style="color: #223fbf;">"-ferror-spans"</span>))
-                  (eval . (lsp-mode -1))
                   (dante-repl-command-line . (<span style="color: #223fbf;">"stack"</span> <span style="color: #223fbf;">"exec"</span> <span style="color: #223fbf;">"ghci"</span>)))))
 </pre>
 </div>
 
 <p>
 The <a href="https://www.gnu.org/software/emacs/manual/html_node/emacs/Directory-Variables.html#Directory-Variables">documentation</a> says that this is a list mapping major modes to variables. dante is a minor mode, so the <code class="src src-sh">dante-repl-command-line</code> variable goes under the list of <code class="src src-sh">haskell-mode</code> variables.
-</p>
-
-<p>
-I've also disabled <code class="src src-sh">lsp-mode</code> because haskell-ide-engine doesn't currently work with GHC 8.2.2
 </p>
