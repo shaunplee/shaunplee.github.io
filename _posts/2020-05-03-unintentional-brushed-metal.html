@@ -1,0 +1,255 @@
+---
+layout: post
+title: Unintentional brushed metal in a ray tracer
+---
+<p>
+In the previous post, I mentioned I was starting to read <a href="https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/">Parallel and Concurrent Programming in Haskell</a>, but that was motivated by wanting to shorten render times as I worked through <a href="https://raytracing.github.io">Ray Tracing in One Weekend</a> by dividing the work across the two cores of my aging laptop.
+</p>
+
+<p>
+The below image would take about 17 minutes to render on a single core (after trying lots of compiler optimizations), and about 11 minutes to render after making a few edits to use <code class="src src-sh">parMap rpar</code> from Chapter 2 of Parallel and Concurrent Programming. (Hooray for quick wins!)
+</p>
+
+<img src="/assets/2020-05-03-finalimage.png"/>
+
+<div id="outline-container-org3aba3c4" class="outline-2">
+<h2 id="org3aba3c4">The problem</h2>
+<div class="outline-text-2" id="text-org3aba3c4">
+<p>
+Unfortunately, the scene is so busy that it masked a bug in my implementation that caused fine lines to appear on the surfaces of objects, like a brushed metal effect:
+</p>
+
+<img src="/assets/2020-05-03-twoPerlinTrilinearlarge.png"/>
+
+<p>
+This effect is also visible with two constant colored Lambertian spheres (that don't look so "constant" due to this bug):
+</p>
+
+<img src="/assets/2020-05-03-twoConstantColoredlarge.png"/>
+
+<p>
+I kept thinking it might have been some divide-by-zero singularity, because the lines seem to follow the curves of some of the shapes in the image. For example, the bottom of the small sphere is tangent to the lower sphere at point (0, 0, 0), and the lines at the bottom seem to curve around that origin spot. However, while digging through the code revealed a few other minor errors, nothing stood out as being directly related to a singularity at the global origin.
+</p>
+
+<p>
+Rendering the random scene from above revealed that my earlier tests on the parallel renderer might have had similar problems:
+</p>
+
+<img src="/assets/2020-05-03-randomAbove.png"/>
+
+<p>
+I can see similar lines in the gray ground, where the lines bend around the various small spheres. The lines are also visible inside the large dielectric sphere in the middle of this image.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org2118698" class="outline-2">
+<h2 id="org2118698">Where did things go wrong?</h2>
+<div class="outline-text-2" id="text-org2118698">
+<p>
+One thing I noticed is that the lines generally seemed to extend "vertically" in the image, but also seemed to interact with the shapes.
+</p>
+
+<p>
+This gave me a hunch that my problem was in random number generation, or more particularly, my mismanagement of the random number generator when parallelizing the code.
+</p>
+
+<p>
+This ray tracer uses randomness to generate smoother images in a variety of ways. These include randomizing a direction of reflection of rays that bounce off Lambertian (e.g., diffuse or matte) surfaces or reflections off metal surfaces that have some "fuzziness" (e.g., matte qualities).
+</p>
+
+<p>
+Randomness is also used to anti-alias the generated image by computing multiple color samples for each pixel. For example, the basic ray tracer from the beginning of the book generated one sample for each pixel by tracing a ray that passed through the center of the pixel. However, this results in aliasing effects at the edges of objects, as the sample rate is much lower than the Nyquist rate of the scene. To address this, multiple samples (e.g., \(total samples = 100\) samples) are taken for each pixel by passing rays through random locations within the 2-D area of the pixel, and the resulting output color of the rendering operation is the average color of all these samples.
+</p>
+
+<p>
+Here's the main outer "loop":
+</p>
+
+<div class="org-src-container">
+<label class="org-src-name"><span class="listing-number">Listing 1: </span>main <code class="src src-sh">render</code> block</label><pre class="src src-haskell"><span style="color: #721045;">render</span> <span style="color: #005589;">::</span> <span style="color: #8f0075;">IO</span> <span style="color: #8f0075;">()</span>
+<span style="color: #721045;">render</span> <span style="color: #005589;">=</span> <span style="color: #5317ac;">do</span>
+  putStrLn <span style="color: #223fbf;">"P3"</span>
+  putStrLn <span style="color: #005589;">$</span> show imageWidth <span style="color: #005589;">++</span> <span style="color: #223fbf;">" "</span> <span style="color: #005589;">++</span> show imageHeight
+  putStrLn <span style="color: #223fbf;">"255"</span>
+  <span style="color: #5317ac;">let</span> pp <span style="color: #005589;">=</span> pixelPositions imageWidth imageHeight
+  <span style="color: #5317ac;">let</span> gen <span style="color: #005589;">=</span> pureMT 1024 <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">Fix a seed for comparable performance tests</span>
+  <span style="color: #5317ac;">let</span> (world, g1) <span style="color: #005589;">=</span> makeTwoPerlinSpheresScene 0.0 1.0 gen
+  <span style="color: #5317ac;">let</span> camera <span style="color: #005589;">=</span> randomSceneCamera
+  gs <span style="color: #005589;">&lt;-</span> replicateM (nThreads <span style="color: #005589;">-</span> 1) newPureMT
+  <span style="color: #5317ac;">let</span> gens <span style="color: #005589;">=</span> g1 <span style="color: #8f0075;">:</span> gs
+  <span style="color: #5317ac;">let</span> vals <span style="color: #005589;">=</span>
+        runST <span style="color: #005589;">$</span>
+        mapM
+          (<span style="color: #005589;">\</span>rowPs <span style="color: #005589;">-&gt;</span>
+             map scaleColors <span style="color: #005589;">&lt;$&gt;</span>
+             parallelRenderRow rowPs world camera gens)
+          pp
+  mapM_ printRow (zip [1 <span style="color: #005589;">..</span> imageHeight] vals)
+  hPutStr stderr <span style="color: #223fbf;">"\nDone.\n"</span>
+</pre>
+</div>
+
+<p>
+The key parts of the above code are the definition of <code class="src src-sh">vals</code> and the line <code class="src src-sh">mapM_ printRow (zip [1 .. imageHeight] vals)</code>. <code class="src src-sh">vals</code> defines the output colors of the rows of pixels and the <code class="src src-sh">mapM</code> line prints those out, row-by-row to <code class="src src-sh">stdout</code> in PPM format. By using the lazy version of the ST monad (<code class="src src-sh">Control.Monad.ST.Lazy</code>), each row is only evaluated when it is needed to print the row.
+</p>
+
+<p>
+As part of the definition of <code class="src src-sh">vals</code>, I run an ST monad that essentially maps a <code class="src src-sh">parallelRenderRow</code> function over <code class="src src-haskell"><span style="color: #721045;">pp</span> <span style="color: #005589;">::</span> [[(<span style="color: #8f0075;">Int</span>, <span style="color: #8f0075;">Int</span>)]]</code>, which is a list of lists of pixel coordinates. <code class="src src-sh">parallelRenderRow</code> takes a given row of pixel coordinates and calculates color values ("<code class="src src-sh">Albedo</code>") for each of those pixels. The <code class="src src-sh">map scaleColors</code> converts those from <code class="src src-sh">Albedo</code> values from Doubles in the range (0, 1) to Int values in the range (0, 255).
+</p>
+
+<p>
+To run this in parallel over <code class="src src-sh">nThreads</code>, I create a separate random number generator for each of the <code class="src src-sh">nThreads</code> using <code class="src src-sh">newPureMT</code> (I'm using the <a href="http://hackage.haskell.org/package/mersenne-random-pure64">mersenne-random-pure64</a> library, which is much faster than the bundled System.Random functions). These <code class="src src-sh">nThreads</code> random number generators are put into a list <code class="src src-sh">gens</code>, which is passed in to <code class="src src-sh">parallelRenderRow</code>.
+</p>
+
+<div class="org-src-container">
+<label class="org-src-name"><span class="listing-number">Listing 2: </span><code class="src src-sh">parallelRenderRow</code></label><pre class="src src-haskell"><span style="color: #721045;">parallelRenderRow</span> <span style="color: #005589;">::</span>
+     [(<span style="color: #8f0075;">Int</span>, <span style="color: #8f0075;">Int</span>)] <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">Scene</span> <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">Camera</span> <span style="color: #005589;">-&gt;</span> [<span style="color: #8f0075;">PureMT</span>] <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">ST</span> s [<span style="color: #8f0075;">Albedo</span>]
+<span style="color: #721045;">parallelRenderRow</span> rowps world camera gs <span style="color: #005589;">=</span>
+  <span style="color: #5317ac;">let</span> sampleGroups <span style="color: #005589;">=</span>
+        parMap rpar
+          (<span style="color: #005589;">\</span>gen <span style="color: #005589;">-&gt;</span> force <span style="color: #005589;">$</span> runST <span style="color: #005589;">$</span> <span style="color: #5317ac;">do</span>
+              worldRef <span style="color: #005589;">&lt;-</span> newSTRef world
+              genRef <span style="color: #005589;">&lt;-</span> newSTRef gen
+              runReaderT (renderRow rowps) (worldRef, camera, genRef))
+          gs
+   <span style="color: #5317ac;">in</span> return <span style="color: #005589;">$</span> foldl'
+        (zipWith (<span style="color: #005589;">\</span>(<span style="color: #8f0075;">Albedo</span> a1) (<span style="color: #8f0075;">Albedo</span> a2) <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">Albedo</span> <span style="color: #005589;">$</span> vecAdd a1 a2))
+        (replicate imageWidth (<span style="color: #8f0075;">Albedo</span> <span style="color: #005589;">$</span> <span style="color: #8f0075;">Vec3</span> (0.0, 0.0, 0.0)))
+        sampleGroups
+</pre>
+</div>
+
+<p>
+Here, in <code class="src src-sh">parallelRenderRow</code>, the idea is to use \(n\) different threads to compute pixel colors for their own \(total samples / n\) samples render the same row and then averaging the colors computed by the \(n\) threads. However, these \(n\) threads need to use \(n\) independent random number generators. If they all used the same random number generator, then they would compute identical outputs, and therefore there would be no visual benefit.
+</p>
+
+<p>
+For example, in the main <code class="src src-sh">render</code> code above, I generated one of the random generators using a fixed seed of <code class="src src-sh">1024</code>: <code class="src src-sh"><span style="color: #8f0075;">let</span> <span style="color: #005589;">gen</span> = pureMT 1024</code>. I generated the additional generators using <code class="src src-sh">newPureMT</code>, which generates a seed based on the current time. This particular library allows you to generate, for example, <code class="src src-sh">Double</code> values using the <code class="src src-haskell"><span style="color: #721045;">randomDouble</span> <span style="color: #005589;">::</span> <span style="color: #8f0075;">PureMT</span> <span style="color: #005589;">-&gt;</span> (<span style="color: #8f0075;">Double</span>, <span style="color: #8f0075;">PureMT</span></code> by passing in a <code class="src src-sh">PureMT</code>. The output is the requested <code class="src src-sh">Double</code> and new <code class="src src-sh">PureMT</code> for use the next time we need a random number. Reusing the original <code class="src src-sh">PureMT</code> would only give us the same random number generated earlier.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-haskell">&#955;<span style="color: #721045;">&gt;</span> g1 <span style="color: #005589;">&lt;-</span> newPureMT                <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">Create a first PureMT</span>
+&#955;<span style="color: #721045;">&gt;</span> (rd1, g2) <span style="color: #005589;">=</span> randomDouble g1    <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">Generate a double and another PureMT</span>
+&#955;<span style="color: #721045;">&gt;</span> rd1
+0.15164889407071558               <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">value of generated double rd1</span>
+&#955;<span style="color: #721045;">&gt;</span> g2
+<span style="color: #223fbf;">"&lt;PureMT&gt;"</span>                        <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">"value" of generated PureMT g2</span>
+&#955;<span style="color: #721045;">&gt;</span> (rd2, g3) <span style="color: #005589;">=</span> randomDouble g2    <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">Generate another double and PureMT</span>
+&#955;<span style="color: #721045;">&gt;</span> rd2
+0.2577711144917828                <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">value of generated double rd2</span>
+&#955;<span style="color: #721045;">&gt;</span> randomDouble g1                <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">calling randomDouble with the original</span>
+(0.15164889407071558,<span style="color: #223fbf;">"&lt;PureMT&gt;"</span>)  <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">PureMT generates the same rd1 value</span>
+&#955;<span style="color: #721045;">&gt;</span> randomDouble g2                <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">calling randomDouble with the second PureMT</span>
+(0.2577711144917828,<span style="color: #223fbf;">"&lt;PureMT&gt;"</span>)   <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">generates the same rd2 value</span>
+</pre>
+</div>
+
+<p>
+So I use <code class="src src-sh">parMap</code> with strategy <code class="src src-sh">rpar</code> over the generators <code class="src src-sh">gs</code> to run an ST monad on the supplied <code class="src src-sh">Scene</code> and with the generator <code class="src src-sh">gen</code> for the given thread. This gives a list of <code class="src src-sh">sampleGroups</code>, and we <code class="src src-sh">foldl<span style="color: #223fbf;">'</span></code> these up using <code class="src src-sh">vecAdd</code>, which adds corresponding components of the color vectors.
+</p>
+
+<p>
+As it turns out, when rendering each row, I used the <i>same</i> random number generators in the same states, rather than passing along the random number generator state from the previous row. In particular, in the main <code class="src src-sh">render</code> function, the same generators <code class="src src-sh">gens</code> are supplied when rendering each row. I knew what I was trying to do, because I used <code class="src src-sh">mapM</code> to try to thread the random number generators through the computations, but messed that one up.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgf88eb14" class="outline-2">
+<h2 id="orgf88eb14">The fix</h2>
+<div class="outline-text-2" id="text-orgf88eb14">
+<p>
+The fix was to make sure that the proper new random number generators, in their states after rendering a given row, were fed into the call to <code class="src src-sh">parallelRenderRow</code> for each next row. <code class="src src-sh">mapM</code> can handle that for us, so long as the updated <code class="src src-sh">PureMT</code>s are stored in the ST monad.
+</p>
+
+<div class="org-src-container">
+<label class="org-src-name"><span class="listing-number">Listing 3: </span>Corrected main <code class="src src-sh">render</code> block</label><pre class="src src-haskell"><span style="color: #721045;">render</span> <span style="color: #005589;">::</span> <span style="color: #8f0075;">IO</span> <span style="color: #8f0075;">()</span>
+<span style="color: #721045;">render</span> <span style="color: #005589;">=</span> <span style="color: #5317ac;">do</span>
+  putStrLn <span style="color: #223fbf;">"P3"</span>
+  putStrLn <span style="color: #005589;">$</span> show imageWidth <span style="color: #005589;">++</span> <span style="color: #223fbf;">" "</span> <span style="color: #005589;">++</span> show imageHeight
+  putStrLn <span style="color: #223fbf;">"255"</span>
+  <span style="color: #5317ac;">let</span> pp <span style="color: #005589;">=</span> pixelPositions imageWidth imageHeight
+  <span style="color: #5317ac;">let</span> gen <span style="color: #005589;">=</span> pureMT 1024 <span style="color: #505050; font-style: italic;">-- </span><span style="color: #a80000; font-style: italic;">Fix a seed for comparable performance tests</span>
+  <span style="color: #5317ac;">let</span> (world, g1) <span style="color: #005589;">=</span> makeTwoPerlinSpheresScene 0.0 1.0 gen
+  <span style="color: #5317ac;">let</span> camera <span style="color: #005589;">=</span> randomSceneCamera
+  gs <span style="color: #005589;">&lt;-</span> replicateM (nThreads <span style="color: #005589;">-</span> 1) newPureMT
+  <span style="color: #5317ac;">let</span> gens <span style="color: #005589;">=</span> g1 <span style="color: #8f0075;">:</span> gs
+  <span style="color: #5317ac;">let</span> vals <span style="color: #005589;">=</span>
+        runST <span style="color: #005589;">$</span> <span style="color: #5317ac;">do</span>
+        gensRef <span style="color: #005589;">&lt;-</span> newSTRef gens
+        mapM
+          (<span style="color: #005589;">\</span>rowPs <span style="color: #005589;">-&gt;</span>
+             map scaleColors <span style="color: #005589;">&lt;$&gt;</span>
+             parallelRenderRow rowPs world camera gensRef)
+          pp
+  mapM_ printRow (zip [1 <span style="color: #005589;">..</span> imageHeight] vals)
+  hPutStr stderr <span style="color: #223fbf;">"\nDone.\n"</span>
+</pre>
+</div>
+
+<p>
+The main change here war to create a create a <code class="src src-sh">gensRef</code> that was an <code class="src src-sh">STRef</code> to a list of <code class="src src-sh">PureMT</code>s and passing that <code class="src src-sh">STRef s [PureMT]</code> to <code class="src src-sh">parallelRenderRow</code>.
+</p>
+
+<div class="org-src-container">
+<label class="org-src-name"><span class="listing-number">Listing 4: </span>Fixed <code class="src src-sh">parallelRenderRow</code></label><pre class="src src-haskell"><span style="color: #721045;">parallelRenderRow</span> <span style="color: #005589;">::</span>
+     [(<span style="color: #8f0075;">Int</span>, <span style="color: #8f0075;">Int</span>)] <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">Scene</span> <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">Camera</span> <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">STRef</span> s [<span style="color: #8f0075;">PureMT</span>] <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">ST</span> s [<span style="color: #8f0075;">Albedo</span>]
+<span style="color: #721045;">parallelRenderRow</span> rowps world camera gsRef <span style="color: #005589;">=</span> <span style="color: #5317ac;">do</span>
+  gs <span style="color: #005589;">&lt;-</span> readSTRef gsRef
+  <span style="color: #5317ac;">let</span> (sampleGroups, newGs) <span style="color: #005589;">=</span>
+        unzip <span style="color: #005589;">$</span>
+        parMap
+          rpar
+          (<span style="color: #005589;">\</span>gen <span style="color: #005589;">-&gt;</span>
+             force <span style="color: #005589;">$</span>
+             runST <span style="color: #005589;">$</span> <span style="color: #5317ac;">do</span>
+               worldRef <span style="color: #005589;">&lt;-</span> newSTRef world
+               genRef <span style="color: #005589;">&lt;-</span> newSTRef gen
+               runReaderT
+                 (<span style="color: #5317ac;">do</span> row <span style="color: #005589;">&lt;-</span> renderRow rowps
+                     g <span style="color: #005589;">&lt;-</span> lift <span style="color: #005589;">$</span> readSTRef genRef
+                     return (row, g))
+                 (worldRef, camera, genRef))
+          gs
+  writeSTRef gsRef newGs
+  return <span style="color: #005589;">$</span>
+    foldl'
+      (zipWith (<span style="color: #005589;">\</span>(<span style="color: #8f0075;">Albedo</span> a1) (<span style="color: #8f0075;">Albedo</span> a2) <span style="color: #005589;">-&gt;</span> <span style="color: #8f0075;">Albedo</span> <span style="color: #005589;">$</span> vecAdd a1 a2))
+      (replicate imageWidth (<span style="color: #8f0075;">Albedo</span> <span style="color: #005589;">$</span> <span style="color: #8f0075;">Vec3</span> (0.0, 0.0, 0.0)))
+      sampleGroups
+</pre>
+</div>
+
+<p>
+The changes here were to update the type signature to change <code class="src src-haskell">[<span style="color: #8f0075;">PureMT</span>]</code> to <code class="src src-haskell"><span style="color: #8f0075;">STRef</span> s [<span style="color: #8f0075;">PureMT</span>]</code>, and then read the <code class="src src-sh">[PureMT]</code> from the ST monad.
+</p>
+
+<p>
+To get the final <code class="src src-sh">PureMT</code> random number generators back from each thread, I had to <code class="src src-haskell">g <span style="color: #005589;">&lt;-</span> lift <span style="color: #005589;">$</span> readSTRef genRef</code>, so that each thread would return its computed colors <code class="src src-sh">row</code> and its final random generator <code class="src src-sh">g</code>, which meant that the output of the <code class="src src-sh">parMap</code> had type <code class="src src-haskell">[([<span style="color: #8f0075;">Albedo</span>], <span style="color: #8f0075;">PureMT</span>)]</code>. Using <code class="src src-sh">unzip</code> lets us extract the <code class="src src-sh">sampleGroups</code> and the <code class="src src-sh">newGs</code>. We can then write the <code class="src src-sh">newGs</code> back into the ST monad for the next row.
+</p>
+
+<p>
+It looks like this fixed the problem:
+</p>
+
+<img src="/assets/2020-05-03-perlinfixed.png"/>
+
+<p>
+and also:
+</p>
+
+<img src="/assets/2020-05-03-twoConstantColoredFixed.png"/>
+
+<p>
+In the problematic images at the beginning of the post, the lines are relatively straight (vertical) in parts of the image where the rows are generally relatively similar to each other (such as the bottom of the image), but the lines shift and bend more in more complex parts of the image, such as near the middle, where the small sphere is very close to the large "ground" sphere.
+</p>
+
+<p>
+My understanding is that because the same random number generators were passed in at the start of rendering every row, the same "noise" was generated for each row. In rows with more complex interactions between the different objects (e.g., randomized diffuse reflections) in those rows cause the ray tracer to consume more random values from the generator stream as it renders each pixel in the row from left to right, thereby causing some of the randomly generated "noise" to appear sooner (e.g., farther to the left side or "sooner" in the row). At least, I think that would explain the particularly weird swirl effect near the point of contact at the origin.
+</p>
+
+<p>
+Anyway, this was a fun bug to understand and to fix, and reminded me to be careful with random number generation.
+</p>
+</div>
+</div>
