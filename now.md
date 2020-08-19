@@ -13,11 +13,12 @@ On weekends, I like hiking in the Angeles National Forest. Unfortunately, COVID-
 Currently reading:
 - The Power Broker
 - Ray Tracing: The Rest of Your Life
-- Status Anxiety
+- The New Jim Crow
 - The End of Policing
 - PureScript by Example
 
 Recently read:
+- Status Anxiety
 - Ray Tracing: The Next Week
 - Ray Tracing in One Weekend
 - Sapiens
