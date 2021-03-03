@@ -311,6 +311,7 @@ Here's the Emacs configuration code, which I also put into <code>init-mail.el</c
   <span style="color: #8f0075; font-style: italic;">:custom</span>
   (mu4e-get-mail-command <span style="color: #223fbf;">"mbsync -qq fastmail"</span>)
   (mu4e-headers-date-format <span style="color: #223fbf;">"%d-%m-%Y %H:%M"</span>)
+  (mu4e-change-filenames-when-moving t)
   (mu4e-drafts-folder <span style="color: #223fbf;">"/Drafts"</span>)
   (mu4e-refile-folder <span style="color: #223fbf;">"/Archive"</span>)
   (mu4e-sent-folder <span style="color: #223fbf;">"/Sent"</span>)
@@ -330,6 +331,10 @@ This behaves more like what I expected. I added the bookmark for the Inbox folde
 
 <p>
 I also had to set the individual folders because mu4e defaults to lowercase names like "drafts" and "sent".
+</p>
+
+<p>
+I had some issues of the form <code>Maildir error: duplicate UID NN</code>. I found <a href="http://pragmaticemacs.com/emacs/fixing-duplicate-uid-errors-when-using-mbsync-and-mu4e/">this post</a> by someone who had the same issue, and found that it was because mu4e wasn't renaming files when moving, which causes problems for mbsync. This was fixed by setting <code>mu4e-change-filenames-when-moving</code> to <code>t</code>.
 </p>
 </div>
 </div>
