@@ -1,0 +1,407 @@
+---
+layout: post
+title: Reading and writing email in Emacs
+---
+<p>
+My MacBook is long out of warranty and its battery seems to be decaying, so I'm trying to move my personal computer setup to the T430s I've had sitting around as a backup, running Pop!<sub>OS</sub>. (Is 2021 the year of the Linux desktop?)
+</p>
+
+<p>
+I thought I would use this opportunity to try using Emacs to manage my email, and read a few tutorials for doing that setup. These are my notes, to help remember how I configured this house of dry spaghetti.
+</p>
+
+<div id="outline-container-orge11c7b8" class="outline-2">
+<h2 id="orge11c7b8">Create folders</h2>
+<div class="outline-text-2" id="text-orge11c7b8">
+<p>
+Trying to keep things clean, I created a separate <code>fastmail</code> folder within a new <code>mail</code> folder, in case I wanted to have another folder later for other email accounts.
+</p>
+
+<pre class="example">
+mkdir -p ~/mail/fastmail
+</pre>
+</div>
+</div>
+
+<div id="outline-container-orgfb73cbc" class="outline-2">
+<h2 id="orgfb73cbc">Password management</h2>
+<div class="outline-text-2" id="text-orgfb73cbc">
+<p>
+Having two factor authentication turned on for my Fastmail account means I need to generate an app password.
+</p>
+
+<p>
+Since I'm using <a href="https://www.lastpass.com">Lastpass</a> anyway, I stored the app password there and I installed the lastpass-cli package. After logging in, I could retrieve the password with::
+</p>
+
+<pre class="example">
+lpass show --password &lt;identifier for mail service&gt;
+</pre>
+
+<p>
+This will work fine, but the Lastpass CLI client will sometimes timeout, and we'll need to log in again, with a graphical prompt for the password. I cam across this <a href="https://svkt.org/~simias/lpass/">tutorial</a> with a <code>lpass-wrapper.sh</code> script to handle this case:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><span style="color: #505050; font-style: italic;">#</span><span style="color: #972500; font-style: italic;">!/bin/</span><span style="color: #5317ac;">sh</span>
+<span style="color: #505050; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">lpass-wrapper.sh</span>
+
+<span style="color: #00538b;">username</span>=<span style="color: #223fbf;">'$username'</span>
+
+<span style="color: #00538b;">status</span>=$(<span style="color: #8f0075;">lpass</span> status)
+
+<span style="color: #5317ac;">if</span> [ $<span style="color: #00538b;">?</span> -ne 0 ]
+<span style="color: #5317ac;">then</span>
+    <span style="color: #5317ac;">if</span> [ <span style="color: #223fbf;">"$status"</span> = <span style="color: #223fbf;">'Not logged in.'</span> ]
+    <span style="color: #5317ac;">then</span>
+    <span style="color: #505050; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Make sure DISPLAY is set</span>
+    <span style="color: #00538b;">DISPLAY</span>=${<span style="color: #00538b;">DISPLAY</span>:-:0} lpass login <span style="color: #223fbf;">"$username"</span> 1&gt;&amp;2
+    <span style="color: #5317ac;">else</span>
+    <span style="color: #8f0075; font-style: italic;">echo</span> <span style="color: #223fbf;">"Lastpass error: $status"</span> 1&gt;&amp;2
+    <span style="color: #5317ac;">exit</span> 1
+    <span style="color: #5317ac;">fi</span>
+<span style="color: #5317ac;">fi</span>
+
+lpass $<span style="color: #00538b;">@</span>
+</pre>
+</div>
+
+<p>
+Saving this script somewhere on the path (like <code>~/.local/bin</code>) means we can now get the password with:
+</p>
+
+<pre class="example">
+lpass-wrapper.sh show --password &lt;identifier for mail service&gt;
+</pre>
+
+<p>
+when the Lastpass client has timed-out, we'll automatically get a prompt for the Lastpass master password to log back in.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org7842eb8" class="outline-2">
+<h2 id="org7842eb8">retrieving emails</h2>
+<div class="outline-text-2" id="text-org7842eb8">
+<p>
+There is no shortage of programs to fetch email from IMAP servers. The <a href="https://notmuchmail.org/howto/">notmuch documentation</a> (discussed later) provides a few examples, the first two of which were offlineimap and mbsync.
+</p>
+</div>
+
+<div id="outline-container-org1952548" class="outline-3">
+<h3 id="org1952548">offlineimap</h3>
+<div class="outline-text-3" id="text-org1952548">
+<p>
+Many tutorials that I found online use <a href="https://www.offlineimap.org/">OfflineIMAP</a>, so it looked like the right choice. Unfortunately, manually writing some configuration files based on some tutorials, I got a Python <code>NullPointerException</code> without explanation and which turned out to be due to my misunderstandings of how to point offlineimap to SSL certificates. After fixing that path, I encountered a <code>str</code> vs <code>bytes</code> error, which revealed that OfflineIMAP is written in Python 2, and arguments about porting to Python 3 have caused a split in their community.
+</p>
+
+<p>
+I have no snake in this fair, but I don't especially want to have an extra dependency on Python 2, which isn't part of the current standard installation of Ubuntu 20.10. I also encountered other posts complaining about the relatively slow performance of offlineimap, so I'll set this option aside for now and try it again if the others don't work out.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org530806a" class="outline-3">
+<h3 id="org530806a">mbsync</h3>
+<div class="outline-text-3" id="text-org530806a">
+<p>
+<a href="https://isync.sourceforge.io/">mbsync</a> looks like it may not have been updated in a few years, but it seems to still be working ok for now.
+</p>
+
+<p>
+My <code>.mbsyncrc</code> was based on <a href="https://rakhim.org/fastmail-setup-with-emacs-mu4e-and-mbsync-on-macos/">these instructions</a>, with tweaks to the <code>PassCmd</code> setting:
+</p>
+
+<pre class="example">
+# First section: remote IMAP account
+IMAPAccount fastmail
+Host imap.fastmail.com
+Port 993
+User &lt;username&gt;
+PassCmd "lpass-wrapper.sh show --password &lt;identifier for mail service&gt;"
+SSLType IMAPS
+SSLVersions TLSv1.2
+
+IMAPStore fastmail-remote
+Account fastmail
+
+# This section describes the local storage
+MaildirStore fastmail-local
+Path ~/mail/fastmail/
+Inbox ~/mail/fastmail/Inbox
+# The SubFolders option allows to represent all
+# IMAP subfolders as local subfolders
+SubFolders Verbatim
+
+# This section a "channel", a connection between remote and local
+Channel fastmail
+Master :fastmail-remote:
+Slave :fastmail-local:
+Patterns *
+Expunge None
+CopyArrivalDate yes
+Sync All
+Create Slave
+SyncState *
+</pre>
+
+<p>
+With this configuration, running:
+</p>
+<pre class="example">
+mbsync -a
+</pre>
+
+<p>
+downloaded my mail to <code>~/mail/fastmail</code> folder. Here, <code>-a</code> stands for "all defined channels". I could alternatively run <code>mbsync fastmail</code> to operate the <code>fastmail</code> channel, which is the only currently defined channel.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgb139a11" class="outline-2">
+<h2 id="orgb139a11">indexing and tagging emails and emacs clients</h2>
+<div class="outline-text-2" id="text-orgb139a11">
+<p>
+Some of the Emacs clients for mail that I've come across are notmuch and mu4e, both of which seem to be preferred over GNUS. What I didn't understand was that these are both actually frontends to email indexing software, which is a nice bonus for fast searches.
+</p>
+</div>
+
+<div id="outline-container-orgc78c39e" class="outline-3">
+<h3 id="orgc78c39e">notmuch</h3>
+<div class="outline-text-3" id="text-orgc78c39e">
+<p>
+<a href="https://notmuchmail.org/">notmuch</a> was the first frontend that I tried, following <a href="https://bostonenginerd.com/posts/notmuch-of-a-mail-setup-part-1-mbsync-msmtp-and-systemd/">this guide</a>. It  indexed the 6,000 messages I had in my Fastmail account pretty quickly.
+</p>
+
+<pre class="example">
+sudo apt install notmuch
+</pre>
+
+<p>
+<code>notmuch setup</code> walks through an interactive setup for generating a <code>.notmuch-config</code> file, which was nice. I also edited the notmuch hooks in <code>~/mail/.notmuch/hooks/pre-new</code> to add a call to retrieve mail using <code>mbsync -qq fastmail</code>, kind of like the <code>checkmail.sh</code> file in <a href="https://bostonenginerd.com/posts/notmuch-of-a-mail-setup-part-2-notmuch-and-emacs/">this tutorial</a>.
+</p>
+</div>
+
+<div id="outline-container-orga7256c2" class="outline-4">
+<h4 id="orga7256c2">notmuch emacs mode</h4>
+<div class="outline-text-4" id="text-orga7256c2">
+<p>
+notmuch comes with an Emacs frontend, which is why I started using it in the first place. It works pretty nicely. I configured it with:
+</p>
+
+<p>
+I put my mail configuration stuff into an <code>init-mail.el</code> file, which includes:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000bb;">notmuch</span>
+  <span style="color: #8f0075; font-style: italic;">:disabled</span>
+  <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
+  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #223fbf;">"/usr/share/emacs/site-lisp/elpa-src/notmuch-0.31/"</span>
+  <span style="color: #8f0075; font-style: italic;">:commands</span> (notmuch)
+  <span style="color: #8f0075; font-style: italic;">:config</span>
+  (add-hook 'notmuch-hello-mode-hook
+            (<span style="color: #5317ac;">lambda</span> ()
+              (display-line-numbers-mode 0)))
+  <span style="color: #8f0075; font-style: italic;">:custom</span>
+  (notmuch-fcc-dirs <span style="color: #223fbf;">"~/mail/fastmail/Sent"</span>)
+  (notmuch-crypto-process-mime t) <span style="color: #505050; font-style: italic;">; </span><span style="color: #972500; font-style: italic;">Automaticlaly check signatures</span>
+  )
+</pre>
+</div>
+
+<p>
+Then in my <code>init.el</code> file:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000bb;">init-mail</span>
+  <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
+  <span style="color: #8f0075; font-style: italic;">:custom</span>
+  (user-mail-address <span style="color: #223fbf;">"&lt;my email address here&gt;"</span>)
+  (user-full-name <span style="color: #223fbf;">"&lt;my name here&gt;"</span>)
+  (mail-envelope-from 'header)
+  (mail-specify-envelope-from t)
+  (mail-user-agent 'message-user-agent)
+  (sendmail-program <span style="color: #223fbf;">"~/.local/bin/msmtp-enqueue.sh"</span>)
+  (send-mail-function 'sendmail-send-it)
+  (message-directory <span style="color: #223fbf;">"~/mail/fastmail/Drafts"</span>)
+  (message-send-mail-function 'sendmail-send-it)
+  (message-sendmail-envelope-from 'header)
+  (message-kill-buffer-on-exit t)
+  )
+</pre>
+</div>
+
+<p>
+As it turned out, notmuch is built around tagging and showing emails matching those tags. I can see how this would be a good fit for Gmail (and I might revisit notmuch if I start using gmail through this set up too), but my Fastmail account uses a more traditional folder-based setup, and I couldn't easily figure out how to get notmuch to show me a view corresponding to my current inbox.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org4cb9627" class="outline-4">
+<h4 id="org4cb9627">afew</h4>
+<div class="outline-text-4" id="text-org4cb9627">
+<p>
+It turns out that notmuch doesn't do much, and relies on something like <a href="https://afew.readthedocs.io/en/latest/">afew</a>, which can apply a chain of filters to further apply tags to emails that can be read by the notmuch client for further sorting your emails. i tried this out and copied and pasted this into <code>~/.config/afew/config</code>:
+</p>
+
+<pre class="example">
+#default filter chain
+[SpamFilter]
+[KillThreadsFilter]
+
+[SentMailsFilter]
+sent_tag = sent
+[ArchiveSentMailsFilter]
+
+[InboxFilter]
+</pre>
+
+<p>
+This helped a bit, but still wasn't what I was expecting.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org1986427" class="outline-3">
+<h3 id="org1986427">maildir-utils</h3>
+<div class="outline-text-3" id="text-org1986427">
+<p>
+Looking at the other options, maildir-utils or <a href="https://www.djcbsoftware.nl/code/mu/">mu</a> seems to be a popular choice too, so why not give it a try?
+</p>
+
+<pre class="example">
+sudo apt install maildir-utils
+mu init -m ~/mail/fastmail --my-addresses=&lt;my email address here&gt;
+mu index
+</pre>
+
+<p>
+Seemed to index the emails about as quickly as notmuch. Also started a background process. Do I need to restart it when I reboot? Hmm.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org484bd3a" class="outline-3">
+<h3 id="org484bd3a">mu4e</h3>
+<div class="outline-text-3" id="text-org484bd3a">
+<p>
+Turns out the Emacs frontend <a href="https://www.djcbsoftware.nl/code/mu/mu4e.html">mu4e</a> is not automatically installed with maildir-utils:
+</p>
+<pre class="example">
+sudo apt install mu4e
+</pre>
+
+<p>
+Here's the Emacs configuration code, which I also put into <code>init-mail.el</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000bb;">mu4e</span>
+  <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
+  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #223fbf;">"/usr/share/emacs/site-lisp/mu4e/"</span>
+  <span style="color: #8f0075; font-style: italic;">:config</span>
+  (add-to-list 'mu4e-bookmarks
+               '(<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #223fbf;">"Inbox"</span>
+                 <span style="color: #8f0075; font-style: italic;">:key</span> ?i
+                 <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #223fbf;">"maildir:/Inbox"</span>))
+  <span style="color: #8f0075; font-style: italic;">:custom</span>
+  (mu4e-get-mail-command <span style="color: #223fbf;">"mbsync -qq fastmail"</span>)
+  (mu4e-headers-date-format <span style="color: #223fbf;">"%d-%m-%Y %H:%M"</span>)
+  (mu4e-drafts-folder <span style="color: #223fbf;">"/Drafts"</span>)
+  (mu4e-refile-folder <span style="color: #223fbf;">"/Archive"</span>)
+  (mu4e-sent-folder <span style="color: #223fbf;">"/Sent"</span>)
+  (mu4e-trash-folder <span style="color: #223fbf;">"/Trash"</span>)
+  (mu4e-update-interval 300)
+  (mu4e-headers-fields '((<span style="color: #8f0075; font-style: italic;">:human-date</span> . 20)
+                         (<span style="color: #8f0075; font-style: italic;">:flags</span> . 6)
+                         (<span style="color: #8f0075; font-style: italic;">:from</span> . 22)
+                         (<span style="color: #8f0075; font-style: italic;">:maildir</span> . 8)
+                         (<span style="color: #8f0075; font-style: italic;">:subject</span>))))
+</pre>
+</div>
+
+<p>
+This behaves more like what I expected. I added the bookmark for the Inbox folder, because otherwise I would have to manually "jump" to that folder, and Inbox isn't the first on the list.
+</p>
+
+<p>
+I also had to set the individual folders because mu4e defaults to lowercase names like "drafts" and "sent".
+</p>
+</div>
+</div>
+
+<div id="outline-container-org574e9f1" class="outline-3">
+<h3 id="org574e9f1">Wanderlust</h3>
+<div class="outline-text-3" id="text-org574e9f1">
+<p>
+I haven't tried it yet, but another option would be to avoid downloading emails altogether and, instead, use an IMAP client in Emacs that just talks to a remote IMAP server. <a href="https://github.com/wanderlust/wanderlust">Wanderlust</a> does this.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-org08d7019" class="outline-2">
+<h2 id="org08d7019">sending emails</h2>
+<div class="outline-text-2" id="text-org08d7019">
+</div>
+<div id="outline-container-orgb3d0564" class="outline-3">
+<h3 id="orgb3d0564">msmtp</h3>
+<div class="outline-text-3" id="text-orgb3d0564">
+<p>
+Following <a href="https://bostonenginerd.com/posts/notmuch-of-a-mail-setup-part-1-mbsync-msmtp-and-systemd/">these instructions</a> again, I set up <a href="https://marlam.de/msmtp/">msmtp</a> to send mail. The <code>tls_fingerprint</code> is the SHA-256 fingerprint from Fastmail's <a href="https://www.fastmail.help/hc/en-us/articles/360060591333-Certificate-Fingerprints">page about certificates</a>.
+</p>
+
+<pre class="example">
+# Set default values for all following accounts.
+defaults
+tls on
+tls_starttls off
+tls_fingerprint AF:01:8E:7F:FF:36:61:06:C6:F9:D4:38:D1:4E:08:98:78:C8:27:C5:E5:C0:A3:97:49:37:F2:76:90:B1:27:59
+logfile ~/.msmtp.log
+
+# Fastmail
+account fastmail
+host smtp.fastmail.com
+port 465
+
+from &lt;my from email address here&gt;
+auth on
+user &lt;my email provider username here&gt;
+passwordeval "lpass-wrapper.sh show --password &lt;identifier for mail service&gt; &lt;/dev/null"
+
+# Set a default account
+account default : fastmail
+</pre>
+</div>
+
+<div id="outline-container-orgfebc7b2" class="outline-4">
+<h4 id="orgfebc7b2">msmtpqueue scripts</h4>
+<div class="outline-text-4" id="text-orgfebc7b2">
+<p>
+The instructions refer to using msmtpqueue scripts from the Arch Wiki. As it turns out, these were already installed at <code>/usr/share/doc/msmtp/examples/msmtpqueue/</code> when i installed msmtp. I copied these to <code>~/.local/bin</code> as well. The <code>msmtp-enqueue.sh</code> script is referred to in the above configuration of the <code>sendmail-program</code> variable in the <code>init-mail</code> use-package declaration.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org3cb0052" class="outline-4">
+<h4 id="org3cb0052">AppArmor woes</h4>
+<div class="outline-text-4" id="text-org3cb0052">
+<p>
+Trying ta actually send an email raised a permission denied error. Searching online, I found a relevant <a href="https://stackoverflow.com/questions/62838673/awk-permission-denied-when-run-through-msmtp?rq=1">StackOverflow question and answer</a>.
+</p>
+
+<p>
+So this was solved with:
+</p>
+<pre class="example">
+sudo ln -s /etc/apparmor.d/usr.bin.msmtp /etc/apparmor.d/disable/
+sudo apparmor_parser -R /etc/apparmor.d/usr.bin.msmtp
+</pre>
+</div>
+</div>
+</div>
+</div>
