@@ -199,6 +199,7 @@ I put my mail configuration stuff into an <code>init-mail.el</code> file, which 
   <span style="color: #8f0075; font-style: italic;">:disabled</span>
   <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
   <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #223fbf;">"/usr/share/emacs/site-lisp/elpa-src/notmuch-0.31/"</span>
+  <span style="color: #8f0075; font-style: italic;">:bind</span> ((<span style="color: #223fbf;">"&lt;f12&gt;"</span> . 'mu4e))
   <span style="color: #8f0075; font-style: italic;">:commands</span> (notmuch)
   <span style="color: #8f0075; font-style: italic;">:config</span>
   (add-hook 'notmuch-hello-mode-hook
@@ -226,6 +227,7 @@ Then in my <code>init.el</code> file:
   (mail-user-agent 'message-user-agent)
   (sendmail-program <span style="color: #223fbf;">"~/.local/bin/msmtp-enqueue.sh"</span>)
   (send-mail-function 'sendmail-send-it)
+  (smtpmail-queue-dir <span style="color: #223fbf;">"~/mail/queue/"</span>)
   (message-directory <span style="color: #223fbf;">"~/mail/fastmail/Drafts"</span>)
   (message-send-mail-function 'sendmail-send-it)
   (message-sendmail-envelope-from 'header)
