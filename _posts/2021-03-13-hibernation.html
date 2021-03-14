@@ -192,3 +192,46 @@ HandleLidSwitchExternalPower=suspend-then-hibernate
 </pre>
 </div>
 </div>
+
+<div id="outline-container-org7f6e2dc" class="outline-2">
+<h2 id="org7f6e2dc">Hibernating without a password</h2>
+<div class="outline-text-2" id="text-org7f6e2dc">
+<p>
+Use <code>visudo</code> to add these lines to <code>/etc/sudoers</code>:
+</p>
+
+<pre class="example">
+# Allow members of group sudo to hibernate without a password
+%sudo	ALL=NOPASSWD: /usr/bin/systemctl hibernate,/usr/bin/systemctl hybrid-sleep
+</pre>
+</div>
+</div>
+
+<div id="outline-container-orgcb3ec5a" class="outline-2">
+<h2 id="orgcb3ec5a">Adding hibernate options to the power menu</h2>
+<div class="outline-text-2" id="text-orgcb3ec5a">
+<p>
+Following these <a href="https://ubuntuhandbook.org/index.php/2018/05/add-hibernate-option-ubuntu-18-04/">instructions</a>:
+</p>
+
+<p>
+Add these lines to <code>/etc/polkit-1/localauthority/50-local.d/com.ubuntu.enable-hibernate.pkla</code>:
+</p>
+
+<pre class="example">
+[Re-enable hibernate by default in upower]
+Identity=unix-user:*
+Action=org.freedesktop.upower.hibernate
+ResultActive=yes
+
+[Re-enable hibernate by default in logind]
+Identity=unix-user:*
+Action=org.freedesktop.login1.hibernate;org.freedesktop.login1.handle-hibernate-key;org.freedesktop.login1;org.freedesktop.login1.hibernate-multiple-sessions;org.freedesktop.login1.hibernate-ignore-inhibit
+ResultActive=yes
+</pre>
+
+<p>
+Then add this Gnome extension <a href="https://extensions.gnome.org/extension/755/hibernate-status-button/">Hibernate Status Button</a>.
+</p>
+</div>
+</div>
