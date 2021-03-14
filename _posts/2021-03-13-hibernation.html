@@ -1,0 +1,194 @@
+---
+layout: post
+title: Enable hibernation on Pop!_OS 20.10
+---
+<p>
+I bought an old mSATA SSD off eBay and put it into the WWAN slot of my ThinkPad. Apparently it's slower than the other SSD, but maybe good enough to use as a scratch disk and for hibernation.
+</p>
+
+<p>
+I created a swap partition of about 18 GB on the new SSD at <code>/dev/sdb1</code> and added it and a new <code>/scratch</code> partition at <code>/dev/sdb2</code>. Get their UUIDs using <code>blkid</code>:
+</p>
+
+<pre class="example">
+❯ sudo blkid /dev/sdb1
+/dev/sdb1: UUID="059137db-89c2-408c-b6bb-4a8b3fe87fe2" TYPE="swap" PARTUUID="2728293e-caf2-4a32-ba96-5fdfaef3be65"
+
+❯ sudo blkid /dev/sdb2
+/dev/sdb2: UUID="b11918a3-0f6e-4105-a59c-e95364504817" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="30276e12-d20a-4b5d-8b7f-2fdf86e9d655"
+</pre>
+
+<p>
+Add these partitions to fstab using the UUIDs:
+</p>
+
+<pre class="example">
+UUID=059137db-89c2-408c-b6bb-4a8b3fe87fe2 none swap sw 0 0
+UUID=b11918a3-0f6e-4105-a59c-e95364504817 /scratch ext4 noatime,errors=remount-ro 0 0
+</pre>
+
+<p>
+Starting with instructions <a href="https://abskmj.github.io/notes/posts/pop-os/enable-hibernate/">here</a> and more instructions at <a href="https://pop-planet.info/forums/threads/guide-to-hibernate-answer-is-a-guide.426/#post-4722">Pop Planet Info</a>:
+</p>
+
+<p>
+Check that the kernel supports hibernation:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; cat /sys/power/state
+freeze mem disk
+</pre>
+</div>
+<p>
+<code>disk</code> means hibernation is supported.
+</p>
+
+<p>
+Add a boot option with <a href="https://github.com/pop-os/kernelstub">kernelstub</a>:
+</p>
+
+<pre class="example">
+sudo kernelstub -a “resume=UUID=059137db-89c2-408c-b6bb-4a8b3fe87fe2"
+</pre>
+
+<p>
+Create a <code>/etc/initramfs-tools/conf.d/resume</code> file pointing to the swap partition:
+</p>
+
+<pre class="example">
+resume=UUID=059137db-89c2-408c-b6bb-4a8b3fe87fe2
+</pre>
+
+<p>
+Update the configuration:
+</p>
+
+<pre class="example">
+sudo update-initramfs -u
+</pre>
+
+<p>
+Install <code>pm-utils</code>:
+</p>
+
+<pre class="example">
+sudo apt install pm-utils
+</pre>
+
+<p>
+Create a file <code>override.conf</code> in <code>/etc/systemd/system/systemd-hibernate.service.d</code> (using <code>pm-hibernate</code> instead of <code>s2disk</code> like in the instructions, because <code>uswsusp</code> doesn`t seem to exist anymore):
+</p>
+
+<pre class="example">
+[Service]
+ExecStart=
+ExecStartPre=-/usr/bin/run-parts -v -a pre /usr/lib/systemd/system-sleep
+ExecStart=/usr/sbin/pm-hibernate
+ExecStartPost=-/usr/bin/run-parts -v --reverse -a post /usr/lib/systemd/system-sleep
+</pre>
+
+<p>
+Now we can hibernate with:
+</p>
+<pre class="example">
+systemctl hibernate
+</pre>
+
+<div id="outline-container-org0fa9e2f" class="outline-2">
+<h2 id="org0fa9e2f">Suspend, then hibernate</h2>
+<div class="outline-text-2" id="text-org0fa9e2f">
+<p>
+To get suspend, then hibernate after a delay, follow <a href="https://pavkam.dev/2019-06-30-ubuntu-19.04-suspend-then-hibernate/">these</a> instructions, again modified because <code>uswsusp</code> no longer seems to exist.
+</p>
+
+<p>
+Create this script as <code>/usr/local/bin/s2smart</code>, replacing <code>s2disk</code> with <code>pm-hibernate</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><span style="color: #972500; font-style: italic;">#</span><span style="color: #972500; font-style: italic;">/bin/bash</span>
+
+<span style="color: #721045;">echo2</span> () {
+    <span style="color: #8f0075; font-style: italic;">printf</span> <span style="color: #005e00;">"$1\n"</span>
+    <span style="color: #8f0075; font-style: italic;">echo</span> <span style="color: #005e00;">"$1"</span> &gt; /dev/kmsg
+}
+
+<span style="color: #5317ac;">if</span> [[ $<span style="color: #00538b;">EUID</span> -ne 0 ]]; <span style="color: #5317ac;">then</span>
+    <span style="color: #8f0075; font-style: italic;">echo</span> <span style="color: #005e00;">"This script must be run as root"</span>
+    <span style="color: #5317ac;">exit</span> 1
+<span style="color: #5317ac;">fi</span>
+
+<span style="color: #00538b;">hibernate_delay</span>=<span style="color: #8f0075;">`cat /etc/systemd/sleep.conf | grep -oP "HibernateDelaySec=\K(\d+)" 2&gt; /dev/null || echo 3600`</span>
+<span style="color: #00538b;">battery_capacity</span>=<span style="color: #8f0075;">`cat /sys/class/power_supply/BAT0/capacity 2&gt; /dev/null || echo 0`</span>
+
+<span style="color: #5317ac;">if</span> [ $<span style="color: #00538b;">battery_capacity</span> -le 20 ]; <span style="color: #5317ac;">then</span>
+    <span style="color: #00538b;">hibernate_delay</span>=$(($<span style="color: #00538b;">hibernate_delay</span>/2))
+<span style="color: #5317ac;">elif</span> [ $<span style="color: #00538b;">battery_capacity</span> -le 50 ]; <span style="color: #5317ac;">then</span>
+    <span style="color: #00538b;">hibernate_delay</span>=$(($<span style="color: #00538b;">hibernate_delay</span>/4))
+<span style="color: #5317ac;">fi</span>
+
+echo2 <span style="color: #005e00;">"Battery capacity at $battery_capacity%%. Will hibernate after $hibernate_delay seconds."</span>
+
+<span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Record current time.</span>
+<span style="color: #00538b;">curtime</span>=$(<span style="color: #8f0075;">date</span> +%s)
+<span style="color: #00538b;">lock</span>=/tmp/rtchibernate.lock
+<span style="color: #8f0075; font-style: italic;">echo</span> <span style="color: #005e00;">"$curtime"</span> &gt; $<span style="color: #00538b;">lock</span>
+
+<span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Entering sleep.</span>
+echo2 <span style="color: #005e00;">"Entering suspend at $curtime. Will resume in $hibernate_delay seconds."</span>
+rtcwake -m no -s $<span style="color: #00538b;">hibernate_delay</span>
+s2ram
+
+<span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Exited the sleep.</span>
+<span style="color: #00538b;">curtime</span>=$(<span style="color: #8f0075;">date</span> +%s)
+<span style="color: #00538b;">sustime</span>=<span style="color: #8f0075;">`cat $lock`</span>
+rm $<span style="color: #00538b;">lock</span>
+
+echo2 <span style="color: #005e00;">"Exited suspend mode at $curtime."</span>
+
+<span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Did we wake up due to the rtc timer above?</span>
+<span style="color: #5317ac;">if</span> [ $(($<span style="color: #00538b;">curtime</span> - $<span style="color: #00538b;">sustime</span>)) -ge $<span style="color: #00538b;">hibernate_delay</span> ]; <span style="color: #5317ac;">then</span>
+    <span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Sometimes when you have too many cores that are too fast run-parts do mess things up.</span>
+    <span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">lets get some sleep ;)</span>
+    sleep 2
+    <span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Hibernate (suspend to disk)...</span>
+    echo2 <span style="color: #005e00;">"Entering hibernation mode at $curtime..."</span>
+    pm-hibernate
+    echo2 <span style="color: #005e00;">"Exited hibernation."</span>
+<span style="color: #5317ac;">else</span>
+    <span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Cancel the rtc timer and wake up normally.</span>
+    rtcwake -m disable
+    echo2 <span style="color: #005e00;">"Cancelled RTC resume prematurely."</span>
+<span style="color: #5317ac;">fi</span>
+
+echo2 <span style="color: #005e00;">"Suspend or hibernate finished. Welcome back."</span>
+</pre>
+</div>
+
+<p>
+Add <code>HibernateDelaySec=3600"</code> to <code>/etc/systemd/sleep.conf</code>
+</p>
+
+<p>
+Create a file <code>override.conf</code> in <code>/etc/systemd/system/systemd-suspend-then-hibernate.service.d</code>:
+</p>
+
+<pre class="example">
+[Service]
+ExecStart=
+ExecStartPre=-/usr/bin/run-parts -v -a pre /usr/lib/systemd/system-sleep
+ExecStart=/usr/local/bin/s2smart
+ExecStartPost=-/usr/bin/run-parts -v --reverse -a post /usr/lib/systemd/system-sleep
+</pre>
+
+<p>
+Edit <code>/etc/systemd/logind.conf</code> to check that these lines are present and not commented:
+</p>
+
+<pre class="example">
+HandleLidSwitch=suspend-then-hibernate
+HandleLidSwitchExternalPower=suspend-then-hibernate
+</pre>
+</div>
+</div>
