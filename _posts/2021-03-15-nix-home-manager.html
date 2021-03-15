@@ -1,0 +1,248 @@
+---
+layout: post
+title: Starting with Nix home-manager
+---
+<p>
+All of the messiness with configuring email with Emacs reminded me that there might be a better way using <a href="https://nixos.org/">Nix</a>. Let's give it a try with some other packages.
+</p>
+
+<p>
+Follow the <a href="https://nixos.org/download.html">quick install</a> instructions to get a <code>nix</code> command.
+</p>
+
+<p>
+<a href="https://github.com/nix-community/home-manager">Home Manager</a> "provides a basic system for managing a user environment using the Nix package manager." I'm not sure what exactly that means over using just <code>nix-shell</code>, but it seems to be related to managing configuration dotfiles for the software installed using <code>home-manager</code>. The <a href="https://nix-community.github.io/home-manager/">Home Manager manual</a> say you can install with:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">nix-shell <span style="color: #005e00;">'&lt;home-manager&gt;'</span> -A install
+</pre>
+</div>
+
+<p>
+There's also a note that we're supposed to source the
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">$<span style="color: #00538b;">HOME</span>/.nix-profile/etc/profile.d/hm-session-vars.sh
+</pre>
+</div>
+
+<p>
+file in my shell configuration, but that this only supports Bash or ZSH, not <a href="https://fishshell.com">fish</a>.
+</p>
+
+<div id="outline-container-org59287c9" class="outline-2">
+<h2 id="org59287c9">Fishing digression</h2>
+<div class="outline-text-2" id="text-org59287c9">
+<p>
+Luckily, we can use the <a href="https://github.com/oh-my-fish/plugin-foreign-env">foreign-env plugin</a> in fish (installed using <a href="https://github.com/oh-my-fish/oh-my-fish">Oh My Fish</a>), which provides an <code>fenv</code> function for sourcing variables using bash syntax. Now we can add a <code>~/.config/fish/nix.fish</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-fish"><span style="color: #5317ac;">if</span> <span style="color: #5317ac;">test</span> -e <span style="color: #005e00;">'/home/shaun/.nix-profile/etc/profile.d/nix.sh'</span>
+    <span style="color: #8f0075; font-style: italic;">fenv</span> <span style="color: #8f0075; font-style: italic;">source</span> <span style="color: #005e00;">'/home/shaun/.nix-profile/etc/profile.d/nix.sh'</span>
+<span style="color: #5317ac;">end</span>
+
+<span style="color: #5317ac;">if</span> <span style="color: #5317ac;">test</span> -e <span style="color: #005e00;">'/home/shaun/.nix-profile/etc/profile.d/hm-session-vars.sh'</span>
+    <span style="color: #8f0075; font-style: italic;">fenv</span> <span style="color: #8f0075; font-style: italic;">source</span> <span style="color: #005e00;">'/home/shaun/.nix-profile/etc/profile.d/hm-session-vars.sh'</span>
+<span style="color: #5317ac;">end</span>
+</pre>
+</div>
+
+<p>
+and call this from <code>~/.config/fish/config.fish</code>
+</p>
+
+<div class="org-src-container">
+<pre class="src src-fish">. ~/.config/fish/nix.<span style="color: #8f0075; font-style: italic;">fish</span>
+</pre>
+</div>
+
+<p>
+and after restarting the <code>fish</code> session, the variables are set:
+</p>
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; export |grep HM_SESS
+__HM_SESS_VARS_SOURCED 1
+</pre>
+</div>
+
+<p>
+Great. (There's also a <code>~/.nix-profile/etc/profile.d/nix-daemon.sh</code> file too. Do I need that? Not sourcing it hasn't seemed to cause an issue yet.)
+</p>
+</div>
+</div>
+
+<div id="outline-container-org5e2b7ec" class="outline-2">
+<h2 id="org5e2b7ec">Configuring packages with home-manager</h2>
+<div class="outline-text-2" id="text-org5e2b7ec">
+<p>
+Installing home-manager created a <code>~/.config/nixpkgs/home.nix</code> file.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix">{ config, pkgs, ... }:
+
+{
+  <span style="color: #972500; font-style: italic;"># Let Home Manager install and manage itself.</span>
+  <span style="color: #00538b;">programs.home-manager.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+
+  <span style="color: #972500; font-style: italic;"># Home Manager needs a bit of information about you and the</span>
+  <span style="color: #972500; font-style: italic;"># paths it should manage.</span>
+  <span style="color: #00538b;">home.username</span> = <span style="color: #005e00;">"shaun"</span>;
+  <span style="color: #00538b;">home.homeDirectory</span> = <span style="color: #005e00;">"/home/shaun"</span>;
+
+  <span style="color: #972500; font-style: italic;"># This value determines the Home Manager release that your</span>
+  <span style="color: #972500; font-style: italic;"># configuration is compatible with. This helps avoid breakage</span>
+  <span style="color: #972500; font-style: italic;"># when a new Home Manager release introduces backwards</span>
+  <span style="color: #972500; font-style: italic;"># incompatible changes.</span>
+  <span style="color: #972500; font-style: italic;">#</span>
+  <span style="color: #972500; font-style: italic;"># You can update Home Manager without changing this value. See</span>
+  <span style="color: #972500; font-style: italic;"># the Home Manager release notes for a list of state version</span>
+  <span style="color: #972500; font-style: italic;"># changes in each release.</span>
+  <span style="color: #00538b;">home.stateVersion</span> = <span style="color: #005e00;">"21.05"</span>;
+}
+</pre>
+</div>
+
+<p>
+Let's start with something (hopefully) simple and install Emacs, since I had been building from source to get Emacs 27. Is Emacs 27 available?
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; nix search emacs27
+ * nixpkgs.emacs27 (emacs-27.1)
+  The extensible, customizable GNU text editor
+
+ * nixpkgs.emacs27-nox (emacs-nox-27.1)
+  The extensible, customizable GNU text editor
+</pre>
+</div>
+
+<p>
+Ok, so let's try to install it by adding the appropriate incantations to <code>~/.config/nixpkgs/home.nix</code>. These "options" are documented at <a href="https://rycee.gitlab.io/home-manager/options.html">https://rycee.gitlab.io/home-manager/options.html</a>. I don't know why most other tutorials don't link to this, and I only found this in a Reddit thread. The Home Manager documentation links to it in the Table of Contents, but I skipped right over it the first time.
+</p>
+
+<p>
+Some of the tutorials list packages in a <code>home.packages</code> expression, which defines "    The set of packages to appear in the user environment."
+</p>
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">home.packages</span> = <span style="color: #5317ac;">with</span> pkgs; [
+  emacs27
+];
+</pre>
+</div>
+
+<p>
+This sounds reasonable. On the other hand, there's also a <code>programs.emacs</code> group, so I could do:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">programs.emacs</span> = {
+  <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+};
+</pre>
+</div>
+
+<p>
+I tried both. That caused a conflict:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; home-manager switch
+these derivations will be built:
+  /nix/store/1q13zc9ybdbvm918viav0v1jrlynk8q2-home-manager-path.drv
+  /nix/store/pfcddd9ghlj7ixmcvbpkqcxysq9nl9pk-activation-script.drv
+  /nix/store/cc09h27dkycp1jy8sprn1ng1s8y4vmx7-home-manager-generation.drv
+building <span style="color: #005e00;">'/nix/store/1q13zc9ybdbvm918viav0v1jrlynk8q2-home-manager-path.drv'</span>...
+collision between <span style="color: #8f0075;">`/nix/store/m1mgx2y1drqmx90m2x6aql00biigzi89-emacs-27.1/bin/ctags' and `</span>/nix/store/26zz4k67p8rpiqsgg82dvssky3k0d49r-emacs-with-packages-27.1/bin/ctags<span style="color: #005e00;">'</span>
+<span style="color: #005e00;">builder for '</span>/nix/store/1q13zc9ybdbvm918viav0v1jrlynk8q2-home-manager-path.drv<span style="color: #005e00;">' failed with exit code 25</span>
+<span style="color: #005e00;">cannot build derivation '</span>/nix/store/cc09h27dkycp1jy8sprn1ng1s8y4vmx7-home-manager-generation.drv<span style="color: #005e00;">': 1 dependencies couldn'</span>t be built
+error: build of <span style="color: #005e00;">'/nix/store/cc09h27dkycp1jy8sprn1ng1s8y4vmx7-home-manager-generation.drv'</span> failed
+</pre>
+</div>
+
+<p>
+For more details:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; home-manager switch
+these derivations will be built:
+  /nix/store/1q13zc9ybdbvm918viav0v1jrlynk8q2-home-manager-path.drv
+  /nix/store/pfcddd9ghlj7ixmcvbpkqcxysq9nl9pk-activation-script.drv
+  /nix/store/cc09h27dkycp1jy8sprn1ng1s8y4vmx7-home-manager-generation.drv
+building <span style="color: #005e00;">'/nix/store/1q13zc9ybdbvm918viav0v1jrlynk8q2-home-manager-path.drv'</span>...
+collision between <span style="color: #8f0075;">`/nix/store/m1mgx2y1drqmx90m2x6aql00biigzi89-emacs-27.1/bin/ctags' and `</span>/nix/store/26zz4k67p8rpiqsgg82dvssky3k0d49r-emacs-with-packages-27.1/bin/ctags<span style="color: #005e00;">'</span>
+<span style="color: #005e00;">builder for '</span>/nix/store/1q13zc9ybdbvm918viav0v1jrlynk8q2-home-manager-path.drv<span style="color: #005e00;">' failed with exit code 25</span>
+<span style="color: #005e00;">cannot build derivation '</span>/nix/store/cc09h27dkycp1jy8sprn1ng1s8y4vmx7-home-manager-generation.drv<span style="color: #005e00;">': 1 dependencies couldn'</span>t be built
+error: build of <span style="color: #005e00;">'/nix/store/cc09h27dkycp1jy8sprn1ng1s8y4vmx7-home-manager-generation.drv'</span> failed
+</pre>
+</div>
+
+<p>
+Ok, so some clash between <code>emacs-27.1</code> and <code>emacs-with-packages-27.1</code>. Let's get rid of the entry from <code>home.packages</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; home-manager switch
+/nix/store/lidm821d00nn86im15gic2gjdh984i3w-home-manager-generation
+Starting home manager activation
+Activating checkFilesChanged
+Activating checkLinkTargets
+Activating writeBoundary
+Activating installPackages
+replacing old <span style="color: #005e00;">'home-manager-path'</span>
+installing <span style="color: #005e00;">'home-manager-path'</span>
+Activating linkGeneration
+Cleaning up orphan links from /home/shaun
+No change so reusing latest profile generation 9
+Creating home file links<span style="color: #5317ac;"> in</span> /home/shaun
+Activating onFilesChange
+Activating reloadSystemd
+</pre>
+</div>
+
+<p>
+Looks promising. Let's try it:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; which emacs
+/home/shaun/.nix-profile/bin/emacs
+</pre>
+</div>
+
+<p>
+Running <code>emacs</code> at the prompt starts GUI Emacs, as desired. Wonderful.
+</p>
+
+<p>
+Unfortunately, this new Emacs installation doesn't appear when I search for "emacs" using the Gnome Activities overlay by pressing <code>Super</code>.
+</p>
+
+<p>
+Digging around led me to some instructions on using <a href="https://bitbucket.org/rustom/vit-projects/wiki/emacsasdefault">Emacs as Default Editor</a>, which indicated that I need an <code>~/.local/share/applications/emacs.desktop</code> file. Adapting the example from that page (which was configured for EmacsClient):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-conf">[<span style="color: #005a5f;">Desktop Entry</span>]
+<span style="color: #00538b;">Name</span>=Emacs
+<span style="color: #00538b;">GenericName</span>=Text Editor
+<span style="color: #00538b;">Comment</span>=Edit text
+<span style="color: #00538b;">MimeType</span>=text/english;text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;text/x-chdr;text/x-csrc;text/x-java;text/x-moc;text/x-pascal;text/x-tcl;text/x-tex;application/x-shellscript;text/x-c;text/x-c++;
+<span style="color: #00538b;">Exec</span>=emacs
+<span style="color: #00538b;">Icon</span>=emacs
+<span style="color: #00538b;">Type</span>=Application
+<span style="color: #00538b;">Terminal</span>=false
+<span style="color: #00538b;">Categories</span>=Development;TextEditor;
+<span style="color: #00538b;">StartupWMClass</span>=Emacs
+</pre>
+</div>
+
+<p>
+And now I can launch emacs from the Activity overview, complete with an Emacs icon. That wasn't so bad.
+</p>
+</div>
+</div>
