@@ -1,0 +1,196 @@
+---
+layout: post
+title: Reading GMail in Emacs
+---
+<p>
+A few weeks ago, I set up <a href="https://blog.curlyfri.es/2021/03/02/emacs-mail-setup.html">reading an email account over IMAP in Emacs</a>, and over the weekend I <a href="https://blog.curlyfri.es/2021/03/13/hibernation.html">installed an SSD</a> and <a href="https://blog.curlyfri.es/2021/03/15/nix-home-manager.html">set up Nix home-manager</a>. Let's put these together use home-manager to configure scripts for downloading emails from my GMail account, save them to the new SSD, and make them viewable in Emacs.
+</p>
+
+<p>
+Most of this follows the GMail instructions <a href="https://sqrtminusone.xyz/posts/2021-02-27-gmail/">here</a>, although some things seem to have changed. Let's start by setting up lieer:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">home.packages</span> = <span style="color: #5317ac;">with</span> pkgs; [
+  <span style="color: #972500; font-style: italic;"># mail</span>
+  lieer
+];
+</pre>
+</div>
+
+<p>
+Then we activate the change using <code>home-manager switch</code>. Ok, did that do anything?
+</p>
+
+<pre class="example">
+❯ which gmi
+/home/shaun/.nix-profile/bin/gmi
+</pre>
+
+<p>
+So far so good. Next, we're supposed to set up <code>notmuch</code>, so go back into <code>home.nix</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">home.packages</span> = <span style="color: #5317ac;">with</span> pkgs; [
+  <span style="color: #972500; font-style: italic;"># mail</span>
+  lieer
+  notmuch
+];
+</pre>
+</div>
+
+<p>
+Looking at these <a href="https://beb.ninja/post/email/">other instructions</a> specifically about home-manager, and looking at the home-manager <a href="https://rycee.gitlab.io/home-manager/options.html#opt-programs.notmuch.enable">options for notmuch</a> it seems we can use nix to define a configuration file for notmuch, without using <code>notmuch init</code>. Let's try that:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">programs.notmuch</span> = {
+  <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+  <span style="color: #00538b;">hooks</span> = {
+    <span style="color: #00538b;">preNew</span> = <span style="color: #005e00;">"cd /scratch/Maildir/gmail &amp;&amp; gmi sync"</span>;
+  };
+  <span style="color: #00538b;">new.ignore</span> = [<span style="color: #005e00;">"/.*[.](json|lock|bak)$/"</span>];
+  <span style="color: #00538b;">new.tags</span> = [<span style="color: #005e00;">"new"</span>];
+  <span style="color: #00538b;">maildir.synchronizeFlags</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+  <span style="color: #00538b;">extraConfig.database</span> = {
+    <span style="color: #00538b;">path</span> = <span style="color: #005e00;">"/scratch/Maildir/gmail"</span>;
+  };
+};
+</pre>
+</div>
+
+<p>
+Confusingly, this creates a file at <code>~/.config/notmuch/notmuchrc</code> instead of at <code>~/.notmuch-config</code>, as <code>notmuch</code> expects by default, so we can use the <code>home.file</code> technique again to link it to the right place. (Could alternatively set the <code>NOTMUCH_CONFIG</code> environment variable, but Emacs didn't seem to detect the presence of that variable. The <code>notmuch.nix</code> file that defines all these things also seems to try to set the <code>NOTMUCH_CONFIG</code> variable, but again doesn't seem to actually get set.)
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">home.file.notmuchrc</span> = {
+  <span style="color: #00538b;">source</span> = <span style="color: #005e00;">"/home/shaun/.config/notmuch/notmuchrc"</span>;
+  <span style="color: #00538b;">target</span> = <span style="color: #005e00;">"./.notmuch.config"</span>;
+};
+</pre>
+</div>
+
+<p>
+Now, the plan is to store the email on the new SSD, which is mounted at <code>/scratch</code>, so:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">mkdir -p /scratch/Maildir/gmail
+</pre>
+</div>
+
+<p>
+There's also a bunch of shared email configuration parameters, which I assume <code>lieer</code> and <code>notmuch</code> both consult:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">accounts.email</span> = {
+  <span style="color: #00538b;">maildirBasePath</span> = <span style="color: #005e00;">"/scratch/Maildir"</span>;
+  <span style="color: #00538b;">accounts.gmail</span> = {
+    <span style="color: #00538b;">address</span> = <span style="color: #005e00;">"?????@gmail.com"</span>;
+    <span style="color: #00538b;">flavor</span> = <span style="color: #005e00;">"gmail.com"</span>;
+    <span style="color: #00538b;">maildir.path</span> = <span style="color: #005e00;">"/gmail/"</span>;
+    <span style="color: #00538b;">lieer.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+    <span style="color: #00538b;">notmuch.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+    <span style="color: #00538b;">realName</span> = <span style="color: #005e00;">"Shaun Lee"</span>;
+    <span style="color: #00538b;">passwordCommand</span> = <span style="color: #005e00;">"pass email/?????-gmail"</span>;
+    <span style="color: #00538b;">userName</span> = <span style="color: #005e00;">"?????@gmail.com"</span>;
+    <span style="color: #00538b;">primary</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+  };
+};
+</pre>
+</div>
+
+<p>
+I've set up <code>pass</code> to manage my passwords, and saved an app password for GMail into pass. That involved generating a GPG key using:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">gpg --full-generate-key
+</pre>
+</div>
+
+<p>
+and then saving the password using:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">pass insert email/?????-gmaii
+</pre>
+</div>
+
+<p>
+Now we can add the gmail account and initialize <code>lieer</code>:
+</p>
+<div class="org-src-container">
+<pre class="src src-sh"><span style="color: #8f0075; font-style: italic;">cd</span> /scratch/Maildir/gmail
+gmi init ?????@gmail.com
+</pre>
+</div>
+
+<p>
+All of that should have worked fine, but in practice, I got an error when running <code>notmuch new</code> that <code>libnotmuch.so</code> couldn't be found. It turns out this was installed at <code>~/.nix-profile/lib/libnotmuch.so</code>, but <code>~/.nix-profile/lib/</code> isn't on the <code>LD_LIBRARY_PATH</code>. Searching for "environment variable" in the home-manager options documentation revealed a <code>home.sessionVariables</code> setting that seemed like a reasonable solution:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">home.sessionVariables</span> = {
+  <span style="color: #00538b;">LD_LIBRARY_PATH</span> = <span style="color: #005e00;">"/home/shaun/.nix-profile/lib $LD_LIBRARY_PATH"</span>;
+};
+</pre>
+</div>
+
+<p>
+The <code>programs.notmuch</code> section up above includes <code>hooks</code> section, but I think my setup is a bit different than what is expected by <a href="https://github.com/nix-community/home-manager/blob/master/modules/programs/notmuch.nix"><code>notmuch.nix</code></a>, so I just added the equivalent commands to a shell script at <code>/scratch/Maildir/gmail/.notmuch/hooks/pre-new</code>
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh"><span style="color: #972500; font-style: italic;">#</span><span style="color: #972500; font-style: italic;">!/bin/</span><span style="color: #5317ac;">bash</span>
+<span style="color: #8f0075; font-style: italic;">cd</span> /scratch/Maildir/gmail/
+gmi sync
+</pre>
+</div>
+
+<p>
+So now we can get mail using <code>notmuch new</code>.
+</p>
+
+<p>
+Now let's finish it off with a some Emacs configuration. This was partially set up before, I was trying out notmuch for reading other mail:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000c0;">notmuch</span>
+  <span style="color: #8f0075; font-style: italic;">:ensure</span> t
+  <span style="color: #8f0075; font-style: italic;">:commands</span> (notmuch)
+  <span style="color: #8f0075; font-style: italic;">:config</span>
+  (add-hook 'notmuch-hello-mode-hook
+            (<span style="color: #5317ac;">lambda</span> ()
+              (display-line-numbers-mode 0)))
+  <span style="color: #8f0075; font-style: italic;">:custom</span>
+  (notmuch-fcc-dirs <span style="color: #005e00;">"~/mail/fastmail/Sent"</span>)
+  (notmuch-crypto-process-mime t) <span style="color: #972500; font-style: italic;">; </span><span style="color: #972500; font-style: italic;">Automatically check signatures</span>
+  (notmuch-saved-searches '((<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"inbox"</span> <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"tag:inbox"</span> <span style="color: #8f0075; font-style: italic;">:key</span> <span style="color: #005e00;">"i"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:count-query</span> <span style="color: #005e00;">"tag:inbox and tag:unread"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:sort-order</span> newest-first)
+                            (<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"unread"</span> <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"tag:unread"</span> <span style="color: #8f0075; font-style: italic;">:key</span> <span style="color: #005e00;">"u"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:sort-order</span> newest-first)
+                            (<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"flagged"</span> <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"tag:flagged"</span> <span style="color: #8f0075; font-style: italic;">:key</span> <span style="color: #005e00;">"f"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:sort-order</span> newest-first)
+                            (<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"sent"</span> <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"tag:sent"</span> <span style="color: #8f0075; font-style: italic;">:key</span> <span style="color: #005e00;">"t"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:sort-order</span> newest-first)
+                            (<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"drafts"</span> <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"tag:draft"</span> <span style="color: #8f0075; font-style: italic;">:key</span> <span style="color: #005e00;">"d"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:sort-order</span> newest-first)
+                            (<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"all mail"</span> <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"*"</span> <span style="color: #8f0075; font-style: italic;">:key</span> <span style="color: #005e00;">"a"</span>
+                                   <span style="color: #8f0075; font-style: italic;">:sort-order</span> newest-first))))
+</pre>
+</div>
+
+<p>
+The biggest difference is that I have so much old mail that I don't want to scroll to the bottom to see the recent mail, so i've customized the standard searches to show the <code>newest-first</code>.
+</p>
+
+<p>
+Ok, next time, port the <code>mbsync</code> configuration over to home-manager.
+</p>
