@@ -242,7 +242,28 @@ Digging around led me to some instructions on using <a href="https://bitbucket.o
 </div>
 
 <p>
-And now I can launch emacs from the Activity overview, complete with an Emacs icon. That wasn't so bad.
+And now I can launch emacs from the Activity overview, complete with an Emacs icon. It would have been nice if there was a home-manager option that would create this file, but I couldn't find one. So let's just cram it into a generic config file option: ~home.file":
+</p>
+<div class="org-src-container">
+<pre class="src src-nix">  <span style="color: #00538b;">home.file.emacsDesktop</span> = {
+    <span style="color: #00538b;">target</span> = <span style="color: #005e00;">"./.local/share/applications/emacs.desktop"</span>;
+    <span style="color: #00538b;">text</span> = <span style="color: #005e00;">"[Desktop Entry]</span>
+<span style="color: #005e00;">Name=Emacs</span>
+<span style="color: #005e00;">GenericName=Text Editor</span>
+<span style="color: #005e00;">Comment=Edit text</span>
+<span style="color: #005e00;">MimeType=text/english;text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;text/x-chdr;text/x-csrc;text/x-java;text/x-moc;text/x-pascal;text/x-tcl;text/x-tex;application/x-shellscript;text/x-c;text/x-c++;</span>
+<span style="color: #005e00;">Exec=emacs</span>
+<span style="color: #005e00;">Icon=emacs</span>
+<span style="color: #005e00;">Type=Application</span>
+<span style="color: #005e00;">Terminal=false</span>
+<span style="color: #005e00;">Categories=Development;TextEditor;</span>
+<span style="color: #005e00;">StartupWMClass=Emacs"</span>;
+  };
+</pre>
+</div>
+
+<p>
+And it still works! This configuration process wasn't so bad. Next up, mail configuration using home-manager.
 </p>
 </div>
 </div>
