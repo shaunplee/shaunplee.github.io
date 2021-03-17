@@ -43,21 +43,21 @@ This will work fine, but the Lastpass CLI client will sometimes timeout, and we'
 </p>
 
 <div class="org-src-container">
-<pre class="src src-sh"><span style="color: #505050; font-style: italic;">#</span><span style="color: #972500; font-style: italic;">!/bin/</span><span style="color: #5317ac;">sh</span>
-<span style="color: #505050; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">lpass-wrapper.sh</span>
+<pre class="src src-sh"><span style="color: #972500; font-style: italic;">#</span><span style="color: #972500; font-style: italic;">!/bin/</span><span style="color: #5317ac;">sh</span>
+<span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">lpass-wrapper.sh</span>
 
-<span style="color: #00538b;">username</span>=<span style="color: #223fbf;">'$username'</span>
+<span style="color: #00538b;">username</span>=<span style="color: #005e00;">'$username'</span>
 
 <span style="color: #00538b;">status</span>=$(<span style="color: #8f0075;">lpass</span> status)
 
 <span style="color: #5317ac;">if</span> [ $<span style="color: #00538b;">?</span> -ne 0 ]
 <span style="color: #5317ac;">then</span>
-    <span style="color: #5317ac;">if</span> [ <span style="color: #223fbf;">"$status"</span> = <span style="color: #223fbf;">'Not logged in.'</span> ]
+    <span style="color: #5317ac;">if</span> [ <span style="color: #005e00;">"$status"</span> = <span style="color: #005e00;">'Not logged in.'</span> ]
     <span style="color: #5317ac;">then</span>
-    <span style="color: #505050; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Make sure DISPLAY is set</span>
-    <span style="color: #00538b;">DISPLAY</span>=${<span style="color: #00538b;">DISPLAY</span>:-:0} lpass login <span style="color: #223fbf;">"$username"</span> 1&gt;&amp;2
+    <span style="color: #972500; font-style: italic;"># </span><span style="color: #972500; font-style: italic;">Make sure DISPLAY is set</span>
+    <span style="color: #00538b;">DISPLAY</span>=${<span style="color: #00538b;">DISPLAY</span>:-:0} lpass login <span style="color: #005e00;">"$username"</span> 1&gt;&amp;2
     <span style="color: #5317ac;">else</span>
-    <span style="color: #8f0075; font-style: italic;">echo</span> <span style="color: #223fbf;">"Lastpass error: $status"</span> 1&gt;&amp;2
+    <span style="color: #8f0075; font-style: italic;">echo</span> <span style="color: #005e00;">"Lastpass error: $status"</span> 1&gt;&amp;2
     <span style="color: #5317ac;">exit</span> 1
     <span style="color: #5317ac;">fi</span>
 <span style="color: #5317ac;">fi</span>
@@ -195,19 +195,19 @@ I put my mail configuration stuff into an <code>init-mail.el</code> file, which 
 </p>
 
 <div class="org-src-container">
-<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000bb;">notmuch</span>
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000c0;">notmuch</span>
   <span style="color: #8f0075; font-style: italic;">:disabled</span>
   <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
-  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #223fbf;">"/usr/share/emacs/site-lisp/elpa-src/notmuch-0.31/"</span>
-  <span style="color: #8f0075; font-style: italic;">:bind</span> ((<span style="color: #223fbf;">"&lt;f12&gt;"</span> . 'mu4e))
+  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #005e00;">"/usr/share/emacs/site-lisp/elpa-src/notmuch-0.31/"</span>
+  <span style="color: #8f0075; font-style: italic;">:bind</span> ((<span style="color: #005e00;">"&lt;f12&gt;"</span> . 'mu4e))
   <span style="color: #8f0075; font-style: italic;">:commands</span> (notmuch)
   <span style="color: #8f0075; font-style: italic;">:config</span>
   (add-hook 'notmuch-hello-mode-hook
             (<span style="color: #5317ac;">lambda</span> ()
               (display-line-numbers-mode 0)))
   <span style="color: #8f0075; font-style: italic;">:custom</span>
-  (notmuch-fcc-dirs <span style="color: #223fbf;">"~/mail/fastmail/Sent"</span>)
-  (notmuch-crypto-process-mime t) <span style="color: #505050; font-style: italic;">; </span><span style="color: #972500; font-style: italic;">Automaticlaly check signatures</span>
+  (notmuch-fcc-dirs <span style="color: #005e00;">"~/mail/fastmail/Sent"</span>)
+  (notmuch-crypto-process-mime t) <span style="color: #972500; font-style: italic;">; </span><span style="color: #972500; font-style: italic;">Automaticlaly check signatures</span>
   )
 </pre>
 </div>
@@ -217,18 +217,18 @@ Then in my <code>init.el</code> file:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000bb;">init-mail</span>
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000c0;">init-mail</span>
   <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
   <span style="color: #8f0075; font-style: italic;">:custom</span>
-  (user-mail-address <span style="color: #223fbf;">"&lt;my email address here&gt;"</span>)
-  (user-full-name <span style="color: #223fbf;">"&lt;my name here&gt;"</span>)
+  (user-mail-address <span style="color: #005e00;">"&lt;my email address here&gt;"</span>)
+  (user-full-name <span style="color: #005e00;">"&lt;my name here&gt;"</span>)
   (mail-envelope-from 'header)
   (mail-specify-envelope-from t)
   (mail-user-agent 'message-user-agent)
-  (sendmail-program <span style="color: #223fbf;">"~/.local/bin/msmtp-enqueue.sh"</span>)
+  (sendmail-program <span style="color: #005e00;">"~/.local/bin/msmtp-enqueue.sh"</span>)
   (send-mail-function 'sendmail-send-it)
-  (smtpmail-queue-dir <span style="color: #223fbf;">"~/mail/queue/"</span>)
-  (message-directory <span style="color: #223fbf;">"~/mail/fastmail/Drafts"</span>)
+  (smtpmail-queue-dir <span style="color: #005e00;">"~/mail/queue/"</span>)
+  (message-directory <span style="color: #005e00;">"~/mail/fastmail/Drafts"</span>)
   (message-send-mail-function 'sendmail-send-it)
   (message-sendmail-envelope-from 'header)
   (message-kill-buffer-on-exit t)
@@ -277,7 +277,7 @@ Looking at the other options, maildir-utils or <a href="https://www.djcbsoftware
 
 <pre class="example">
 sudo apt install maildir-utils
-mu init -m ~/mail/fastmail --my-addresses=&lt;my email address here&gt;
+mu init -m ~/mail/fastmail --my-address=&lt;my email address here&gt;
 mu index
 </pre>
 
@@ -302,22 +302,22 @@ Here's the Emacs configuration code, which I also put into <code>init-mail.el</c
 </p>
 
 <div class="org-src-container">
-<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000bb;">mu4e</span>
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000c0;">mu4e</span>
   <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
-  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #223fbf;">"/usr/share/emacs/site-lisp/mu4e/"</span>
+  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #005e00;">"/usr/share/emacs/site-lisp/mu4e/"</span>
   <span style="color: #8f0075; font-style: italic;">:config</span>
   (add-to-list 'mu4e-bookmarks
-               '(<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #223fbf;">"Inbox"</span>
+               '(<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"Inbox"</span>
                  <span style="color: #8f0075; font-style: italic;">:key</span> ?i
-                 <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #223fbf;">"maildir:/Inbox"</span>))
+                 <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"maildir:/Inbox"</span>))
   <span style="color: #8f0075; font-style: italic;">:custom</span>
-  (mu4e-get-mail-command <span style="color: #223fbf;">"mbsync -qq fastmail"</span>)
-  (mu4e-headers-date-format <span style="color: #223fbf;">"%d-%m-%Y %H:%M"</span>)
+  (mu4e-get-mail-command <span style="color: #005e00;">"mbsync -qq fastmail"</span>)
+  (mu4e-headers-date-format <span style="color: #005e00;">"%d-%m-%Y %H:%M"</span>)
   (mu4e-change-filenames-when-moving t)
-  (mu4e-drafts-folder <span style="color: #223fbf;">"/Drafts"</span>)
-  (mu4e-refile-folder <span style="color: #223fbf;">"/Archive"</span>)
-  (mu4e-sent-folder <span style="color: #223fbf;">"/Sent"</span>)
-  (mu4e-trash-folder <span style="color: #223fbf;">"/Trash"</span>)
+  (mu4e-drafts-folder <span style="color: #005e00;">"/Drafts"</span>)
+  (mu4e-refile-folder <span style="color: #005e00;">"/Archive"</span>)
+  (mu4e-sent-folder <span style="color: #005e00;">"/Sent"</span>)
+  (mu4e-trash-folder <span style="color: #005e00;">"/Trash"</span>)
   (mu4e-update-interval 300)
   (mu4e-headers-fields '((<span style="color: #8f0075; font-style: italic;">:human-date</span> . 20)
                          (<span style="color: #8f0075; font-style: italic;">:flags</span> . 6)
