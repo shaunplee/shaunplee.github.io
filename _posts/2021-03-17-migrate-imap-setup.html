@@ -1,0 +1,225 @@
+---
+layout: post
+title: Migrating Fastmail configuration to Nix home-manager
+---
+<p>
+The thought to migrate to Nix and home-manager was based on the complexity of setting up the <a href="https://blog.curlyfri.es/2021/03/02/emacs-mail-setup.html">previous email configuration</a>. Let's see if Nix makes things better.
+</p>
+
+<div id="outline-container-org903c723" class="outline-2">
+<h2 id="org903c723">mu</h2>
+<div class="outline-text-2" id="text-org903c723">
+<p>
+For some reason, I decided to start in the middle. Let's try to replace <code>maildir-utils</code> (as it's called in the Ubuntu repositories) with <code>mu</code> (as it's called ni nixpkgs). There is a home-manager option that is directly on point:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">programs.mu.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; home-manager switch
+...
+&#10095; which mu
+/home/shaun/.nix-profile/bin/mu
+</pre>
+</div>
+
+<p>
+Ok, now we uninstall <code>maildir-utils</code>:
+</p>
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; sudo apt remove maildir-utils                                                       21:35:00
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+The following packages were automatically installed and are no longer required:
+  guile-2.2-libs libgc1 libxapian30
+Use <span style="color: #005e00;">'sudo apt autoremove'</span> to remove them.
+The following packages will be REMOVED:
+  maildir-utils mu4e
+0 upgraded, 0 newly installed, 2 to remove and 5 not upgraded.
+After this operation, 1,867 kB disk space will be freed.
+Do you want to continue? [Y/n]
+(Reading database ... 309390 files and directories currently installed.)
+Removing mu4e (1.4.13-1) ...
+Removing maildir-utils (1.4.13-1) ...
+Processing triggers for man-db (2.9.3-2) ...
+Processing triggers for install-info (6.7.0.dfsg.2-5) ...
+install-info: warning: no info dir entry<span style="color: #5317ac;"> in</span> <span style="color: #8f0075;">`/usr/share/info/automake-history.info.gz'</span>
+<span style="color: #8f0075;">Processing triggers for libc-bin (2.32-0ubuntu3) ...</span>
+</pre>
+</div>
+
+<p>
+This removed <code>mu4e</code>, but it's still loaded in Emacs, so let's try loading the inbox and trying to refresh the inbox. Uh-oh:
+</p>
+
+<pre class="example">
+error in process filter: mu4e-error: [mu4e] Please set `mu4e-mu-binary' to the full path to the mu binary.
+</pre>
+
+<p>
+That should be easy enough to fix. It also looks like home-manager installed these at <code>~/.nix-profile/share/emacs/site-lisp/mu4e/</code>, so we'll update <code>~/.emacs.d/site-lisp/init-mail.el</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">(<span style="color: #5317ac;">use-package</span> <span style="color: #0000c0;">mu4e</span>
+  <span style="color: #8f0075; font-style: italic;">:ensure</span> nil
+  <span style="color: #8f0075; font-style: italic;">:load-path</span> <span style="color: #005e00;">"~/.nix-profile/share/emacs/site-lisp/mu4e/"</span> <span style="color: #972500; font-style: italic;">;; </span><span style="color: #972500; font-style: italic;">this line for mu4e</span>
+  <span style="color: #8f0075; font-style: italic;">:bind</span> ((<span style="color: #005e00;">"&lt;f12&gt;"</span> . 'mu4e))
+  <span style="color: #8f0075; font-style: italic;">:config</span>
+  (add-to-list 'mu4e-bookmarks
+               '(<span style="color: #8f0075; font-style: italic;">:name</span> <span style="color: #005e00;">"Inbox"</span>
+                       <span style="color: #8f0075; font-style: italic;">:key</span> ?i
+                       <span style="color: #8f0075; font-style: italic;">:query</span> <span style="color: #005e00;">"maildir:/Inbox and not flag:trashed"</span>))
+  <span style="color: #8f0075; font-style: italic;">:custom</span>
+  (mu4e-get-mail-command <span style="color: #005e00;">"mbsync -qq fastmail"</span>)
+  (mu4e-mu-binary <span style="color: #005e00;">"/home/shaun/.nix-profile/bin/mu"</span>) <span style="color: #972500; font-style: italic;">;; </span><span style="color: #972500; font-style: italic;">this line for mu location</span>
+  (mu4e-headers-date-format <span style="color: #005e00;">"%d-%m-%Y %H:%M"</span>)
+  (mu4e-change-filenames-when-moving t)
+  (mu4e-drafts-folder <span style="color: #005e00;">"/Drafts"</span>)
+  (mu4e-refile-folder <span style="color: #005e00;">"/Archive"</span>)
+  (mu4e-sent-folder <span style="color: #005e00;">"/Sent"</span>)
+  (mu4e-trash-folder <span style="color: #005e00;">"/Trash"</span>)
+  (mu4e-update-interval 300)
+  (mu4e-headers-fields '((<span style="color: #8f0075; font-style: italic;">:human-date</span> . 20)
+                         (<span style="color: #8f0075; font-style: italic;">:flags</span> . 6)
+                         (<span style="color: #8f0075; font-style: italic;">:from</span> . 22)
+                         (<span style="color: #8f0075; font-style: italic;">:maildir</span> . 8)
+                         (<span style="color: #8f0075; font-style: italic;">:subject</span>))))
+</pre>
+</div>
+
+<p>
+So far so good.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org34bf925" class="outline-2">
+<h2 id="org34bf925">mbsync</h2>
+<div class="outline-text-2" id="text-org34bf925">
+<p>
+Of course <code>programs.mbsync</code> exists too. Let's give it a try:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">programs.mbsync.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+</pre>
+</div>
+
+<p>
+And then we'll add a section for fastmail under <code>accounts.email</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">accounts.fastmail</span> = {
+  <span style="color: #00538b;">address</span> = <span style="color: #005e00;">"?????@fastmail.com"</span>;
+  <span style="color: #00538b;">imap</span> = {
+    <span style="color: #00538b;">host</span> = <span style="color: #005e00;">"imap.fastmail.com"</span>;
+    <span style="color: #00538b;">port</span> = 993;
+  };
+  <span style="color: #00538b;">maildir.path</span> = <span style="color: #005e00;">"fastmail"</span>;
+  <span style="color: #00538b;">mbsync</span> = {
+    <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+    <span style="color: #00538b;">create</span> = <span style="color: #005e00;">"maildir"</span>;
+  };
+  <span style="color: #00538b;">passwordCommand</span> = <span style="color: #005e00;">"pass email/fastmail"</span>;
+  <span style="color: #00538b;">realName</span> = <span style="color: #005e00;">"Shaun Lee"</span>;
+  <span style="color: #00538b;">userName</span> = <span style="color: #005e00;">"?????@fastmail.com"</span>;
+};
+</pre>
+</div>
+
+<p>
+Let's try it:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-sh">&#10095; mbsync -a
+Notice: Master/Slave are deprecated; use Far/Near instead.
+C: 1/1  B: 6/6  F: +1/1 *1/1 <span style="color: #972500; font-style: italic;">#</span><span style="color: #972500; font-style: italic;">0/0  N: +0/0 *30/30 #0/0</span>
+</pre>
+</div>
+
+<p>
+Well that was a pleasant surprise.
+</p>
+</div>
+</div>
+
+<div id="outline-container-orgf5530e6" class="outline-2">
+<h2 id="orgf5530e6">msmtp</h2>
+<div class="outline-text-2" id="text-orgf5530e6">
+<p>
+Same drill:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">programs.msmtp.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+</pre>
+</div>
+
+<p>
+I should have set a bunch of smtp settings before:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">accounts.email</span> = {
+  <span style="color: #00538b;">maildirBasePath</span> = <span style="color: #005e00;">"/scratch/Maildir"</span>;
+  <span style="color: #00538b;">accounts.fastmail</span> = {
+    <span style="color: #00538b;">address</span> = <span style="color: #005e00;">"?????"</span>;
+    <span style="color: #00538b;">aliases</span> = [<span style="color: #005e00;">"shaun@curlyfri.es"</span> <span style="color: #005e00;">"?????@fastmail.com"</span>];
+    <span style="color: #00538b;">imap</span> = {
+      <span style="color: #00538b;">host</span> = <span style="color: #005e00;">"imap.fastmail.com"</span>;
+      <span style="color: #00538b;">port</span> = 993;
+    };
+    <span style="color: #00538b;">maildir.path</span> = <span style="color: #005e00;">"fastmail"</span>;
+    <span style="color: #00538b;">mbsync</span> = {
+      <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+      <span style="color: #00538b;">create</span> = <span style="color: #005e00;">"maildir"</span>;
+    };
+    <span style="color: #00538b;">msmtp</span> = {
+      <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+      <span style="color: #00538b;">tls.fingerprint</span> = <span style="color: #005e00;">"AF:01:8E:7F:FF:36:61:06:C6:F9:D4:38:D1:4E:08:98:78:C8:27:C5:E5:C0:A3:97:49:37:F2:76:90:B1:27:59"</span>;
+    };
+    <span style="color: #00538b;">smtp</span> = {
+      <span style="color: #00538b;">host</span> = <span style="color: #005e00;">"smtp.fastmail.com"</span>;
+      <span style="color: #00538b;">port</span> = 465;
+      <span style="color: #00538b;">tls</span> = {
+        <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+      };
+    };
+    <span style="color: #00538b;">passwordCommand</span> = <span style="color: #005e00;">"pass email/fastmail"</span>;
+    <span style="color: #00538b;">realName</span> = <span style="color: #005e00;">"Shaun Lee"</span>;
+    <span style="color: #00538b;">userName</span> = <span style="color: #005e00;">"shaunlee@fastmail.com"</span>;
+  };
+  <span style="color: #00538b;">accounts.gmail</span> = {
+    <span style="color: #00538b;">address</span> = <span style="color: #005e00;">"shaun.lee@gmail.com"</span>;
+    <span style="color: #00538b;">flavor</span> = <span style="color: #005e00;">"gmail.com"</span>;
+    <span style="color: #00538b;">maildir.path</span> = <span style="color: #005e00;">"gmail"</span>;
+    <span style="color: #00538b;">lieer.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+    <span style="color: #00538b;">notmuch.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+    <span style="color: #00538b;">realName</span> = <span style="color: #005e00;">"Shaun Lee"</span>;
+    <span style="color: #00538b;">passwordCommand</span> = <span style="color: #005e00;">"pass email/shaunlee-gmail"</span>;
+    <span style="color: #00538b;">msmtp.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+    <span style="color: #00538b;">smtp</span> = {
+      <span style="color: #00538b;">host</span> = <span style="color: #005e00;">"smtp.gmail.com"</span>;
+      <span style="color: #00538b;">tls</span> = {
+        <span style="color: #00538b;">enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+      };
+    };
+    <span style="color: #00538b;">userName</span> = <span style="color: #005e00;">"shaun.lee@gmail.com"</span>;
+    <span style="color: #00538b;">primary</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+  };
+};
+</pre>
+</div>
+
+<p>
+And now I can send email from both <code>mu4e</code> and <code>notmuch</code>.
+</p>
+</div>
+</div>
