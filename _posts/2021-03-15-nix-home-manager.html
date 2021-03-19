@@ -32,9 +32,9 @@ There's also a note that we're supposed to source the
 file in my shell configuration, but that this only supports Bash or ZSH, not <a href="https://fishshell.com">fish</a>.
 </p>
 
-<div id="outline-container-org59287c9" class="outline-2">
-<h2 id="org59287c9">Fishing digression</h2>
-<div class="outline-text-2" id="text-org59287c9">
+<div id="outline-container-org59287c9" class="outline-3">
+<h3 id="org59287c9">Fishing digression</h3>
+<div class="outline-text-3" id="text-org59287c9">
 <p>
 Luckily, we can use the <a href="https://github.com/oh-my-fish/plugin-foreign-env">foreign-env plugin</a> in fish (installed using <a href="https://github.com/oh-my-fish/oh-my-fish">Oh My Fish</a>), which provides an <code>fenv</code> function for sourcing variables using bash syntax. Now we can add a <code>~/.config/fish/nix.fish</code>:
 </p>
@@ -74,9 +74,9 @@ Great. (There's also a <code>~/.nix-profile/etc/profile.d/nix-daemon.sh</code> f
 </div>
 </div>
 
-<div id="outline-container-org5e2b7ec" class="outline-2">
-<h2 id="org5e2b7ec">Configuring packages with home-manager</h2>
-<div class="outline-text-2" id="text-org5e2b7ec">
+<div id="outline-container-org5e2b7ec" class="outline-3">
+<h3 id="org5e2b7ec">Configuring packages with home-manager</h3>
+<div class="outline-text-3" id="text-org5e2b7ec">
 <p>
 Installing home-manager created a <code>~/.config/nixpkgs/home.nix</code> file.
 </p>
@@ -264,6 +264,35 @@ And now I can launch emacs from the Activity overview, complete with an Emacs ic
 
 <p>
 And it still works! This configuration process wasn't so bad. Next up, mail configuration using home-manager.
+</p>
+</div>
+</div>
+
+<div id="outline-container-org9925afd" class="outline-2">
+<h2 id="org9925afd">Edit</h2>
+<div class="outline-text-2" id="text-org9925afd">
+<p>
+It turns out home-manager did create an <code>emacs.desktop</code> file, which is in <code>~/.nix-profile/share/applications</code>. The problem is that my desktop environment wasn't looking for these XDG files there. I tried adding <code>~/.nix-profile/share/applications</code> to <code>XDG_DATA_DIRS</code> using <code>home.sessionVariables</code>, but according to this <a href="https://github.com/nix-community/home-manager/issues/1439">Github thread</a>, that's too late in the process. On the other hand, <a href="https://github.com/nix-community/home-manager/issues/1439#issuecomment-714830958">this post</a> on the thread seemed to do what I wanted. so now <code>home.nix</code> includes these lines (<code>xdg.mime.enable</code> is <code>true</code> by default so unnecessary to add):
+</p>
+
+<div class="org-src-container">
+<pre class="src src-nix"><span style="color: #00538b;">xdg.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+<span style="color: #00538b;">targets.genericLinux.enable</span> = <span style="color: #8f0075; font-style: italic;">true</span>;
+</pre>
+</div>
+
+<p>
+And then I edited <code>.profile</code> to include:
+</p>
+<div class="org-src-container">
+<pre class="src src-sh"><span style="color: #5317ac;">if</span> [ -e /home/shaun/.nix-profile/share ] ; <span style="color: #5317ac;">then</span>
+    <span style="color: #00538b;">XDG_DATA_DIRS</span>=<span style="color: #005e00;">"/home/shaun/.nix-profile/share:$XDG_DATA_DIRS"</span>
+<span style="color: #5317ac;">fi</span>
+</pre>
+</div>
+
+<p>
+Log out, log in, and it works perfectly. So now I can delete the expression that manually generates the <code>emacs.desktop</code> file.
 </p>
 </div>
 </div>
