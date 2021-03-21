@@ -131,7 +131,7 @@ gmi init ?????@gmail.com
 </div>
 
 <p>
-All of that should have worked fine, but in practice, I got an error when running <code>notmuch new</code> that <code>libnotmuch.so</code> couldn't be found. It turns out this was installed at <code>~/.nix-profile/lib/libnotmuch.so</code>, but <code>~/.nix-profile/lib/</code> isn't on the <code>LD_LIBRARY_PATH</code>. Searching for "environment variable" in the home-manager options documentation revealed a <code>home.sessionVariables</code> setting that seemed like a reasonable solution:
+<del>All of that should have worked fine, but in practice, I got an error when running <code>notmuch new</code> that <code>libnotmuch.so</code> couldn't be found. It turns out this was installed at <code>~/.nix-profile/lib/libnotmuch.so</code>, but <code>~/.nix-profile/lib/</code> isn't on the <code>LD_LIBRARY_PATH</code>. Searching for "environment variable" in the home-manager options documentation revealed a <code>home.sessionVariables</code> setting that seemed like a reasonable solution:</del>
 </p>
 
 <div class="org-src-container">
@@ -140,6 +140,10 @@ All of that should have worked fine, but in practice, I got an error when runnin
 };
 </pre>
 </div>
+
+<p>
+<i>Edit: I've removed the above section and it seems to work fine.</i>
+</p>
 
 <p>
 The <code>programs.notmuch</code> section up above includes <code>hooks</code> section, but I think my setup is a bit different than what is expected by <a href="https://github.com/nix-community/home-manager/blob/master/modules/programs/notmuch.nix"><code>notmuch.nix</code></a>, so I just added the equivalent commands to a shell script at <code>/scratch/Maildir/gmail/.notmuch/hooks/pre-new</code>

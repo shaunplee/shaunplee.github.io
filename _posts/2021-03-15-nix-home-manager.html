@@ -219,11 +219,11 @@ Running <code>emacs</code> at the prompt starts GUI Emacs, as desired. Wonderful
 </p>
 
 <p>
-Unfortunately, this new Emacs installation doesn't appear when I search for "emacs" using the Gnome Activities overlay by pressing <code>Super</code>.
+<del>Unfortunately, this new Emacs installation doesn't appear when I search for "emacs" using the Gnome Activities overlay by pressing <code>Super</code>.</del>
 </p>
 
 <p>
-Digging around led me to some instructions on using <a href="https://bitbucket.org/rustom/vit-projects/wiki/emacsasdefault">Emacs as Default Editor</a>, which indicated that I need an <code>~/.local/share/applications/emacs.desktop</code> file. Adapting the example from that page (which was configured for EmacsClient):
+<del>Digging around led me to some instructions on using <a href="https://bitbucket.org/rustom/vit-projects/wiki/emacsasdefault">Emacs as Default Editor</a>, which indicated that I need an <code>~/.local/share/applications/emacs.desktop</code> file. Adapting the example from that page (which was configured for EmacsClient):</del>
 </p>
 
 <div class="org-src-container">
@@ -242,7 +242,7 @@ Digging around led me to some instructions on using <a href="https://bitbucket.o
 </div>
 
 <p>
-And now I can launch emacs from the Activity overview, complete with an Emacs icon. It would have been nice if there was a home-manager option that would create this file, but I couldn't find one. So let's just cram it into a generic config file option: <code>home.file</code>:
+<del>And now I can launch emacs from the Activity overview, complete with an Emacs icon. It would have been nice if there was a home-manager option that would create this file, but I couldn't find one. So let's just cram it into a generic config file option: <code>home.file</code>:</del>
 </p>
 <div class="org-src-container">
 <pre class="src src-nix">  <span style="color: #00538b;">home.file.emacsDesktop</span> = {
@@ -263,14 +263,14 @@ And now I can launch emacs from the Activity overview, complete with an Emacs ic
 </div>
 
 <p>
-And it still works! This configuration process wasn't so bad. Next up, mail configuration using home-manager.
+<del>And it still works! This configuration process wasn't so bad. Next up, mail configuration using home-manager.</del>
 </p>
 </div>
 </div>
 
-<div id="outline-container-org9925afd" class="outline-2">
-<h2 id="org9925afd">Edit</h2>
-<div class="outline-text-2" id="text-org9925afd">
+<div id="outline-container-orgc3379e9" class="outline-2">
+<h2 id="orgc3379e9"><i>Edit</i></h2>
+<div class="outline-text-2" id="text-orgc3379e9">
 <p>
 It turns out home-manager did create an <code>emacs.desktop</code> file, which is in <code>~/.nix-profile/share/applications</code>. The problem is that my desktop environment wasn't looking for these XDG files there. I tried adding <code>~/.nix-profile/share/applications</code> to <code>XDG_DATA_DIRS</code> using <code>home.sessionVariables</code>, but according to this <a href="https://github.com/nix-community/home-manager/issues/1439">Github thread</a>, that's too late in the process. On the other hand, <a href="https://github.com/nix-community/home-manager/issues/1439#issuecomment-714830958">this post</a> on the thread seemed to do what I wanted. so now <code>home.nix</code> includes these lines (<code>xdg.mime.enable</code> is <code>true</code> by default so unnecessary to add):
 </p>
