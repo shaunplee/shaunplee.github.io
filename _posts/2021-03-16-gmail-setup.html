@@ -161,7 +161,7 @@ So now we can get mail using <code>notmuch new</code>.
 </p>
 
 <p>
-Now let's finish it off with a some Emacs configuration. This was partially set up before, I was trying out notmuch for reading other mail:
+Now let's finish it off with a some Emacs configuration. This was partially set up before, when I was trying out notmuch for reading other mail:
 </p>
 
 <div class="org-src-container">
@@ -198,3 +198,47 @@ The biggest difference is that I have so much old mail that I don't want to scro
 <p>
 Ok, next time, port the <code>mbsync</code>, <code>mu4e</code>, and <code>msmtp</code> configurations over to home-manager.
 </p>
+
+<div id="outline-container-org8628bdf" class="outline-2">
+<h2 id="org8628bdf"><i>Edit:</i> asynchronous polling in notmuch</h2>
+<div class="outline-text-2" id="text-org8628bdf">
+<p>
+By default, pressing <code>G</code> in a notmuch mode runs <code>notmuch-poll-and-refresh-this-buffer</code>, which runs <code>notmuch new</code> synchronously. This locks up Emacs while it's retrieving mail and updating the database, which is unfortunate. Can't this be done asynchronously?
+</p>
+
+<p>
+Borrowing from <a href="https://www.reddit.com/r/emacs/comments/gwucim/another_notmuch_config_question/%22">this Reddit post</a>, apparently it can be done, but I don't care to watch the log of messages, so I've adapted the code there to remove the lines to display the new <code>*notmuch new*</code> buffer. It also turns out that <code>notmuch-lib.el</code> provides a <code>notmuch-start-notmuch</code> function that starts and returns an asynchronous notmuch command, so we don't need <code>start-process</code> either. I'm not sure why this isn't the default.
+</p>
+
+<p>
+So I've added this to the <code>:config</code> section of the <code>use-package</code> section for <code>notmuch</code>:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp">  (<span style="color: #5317ac;">defun</span> <span style="color: #721045;">spl/notmuch-poll-and-refresh</span> ()
+    <span style="color: #0f443f; font-style: italic;">"Asynchronously poll with `notmuch new' and then refresh notmuch buffers.</span>
+
+<span style="color: #0f443f; font-style: italic;">Borrowed from: https://www.reddit.com/r/emacs/comments/gwucim/another_notmuch_config_question/"</span>
+    (<span style="color: #5317ac;">interactive</span>)
+    (<span style="color: #5317ac;">with-current-buffer</span> (get-buffer-create <span style="color: #005e00;">"*notmuch new*"</span>)
+      (erase-buffer)
+      (notmuch-start-notmuch  <span style="color: #005e00;">"notmuch new"</span> (current-buffer)
+                              (<span style="color: #5317ac;">lambda</span> (p e)
+                                (<span style="color: #5317ac;">when</span> (zerop (process-exit-status p))
+                                  (notmuch-refresh-all-buffers)))
+                              <span style="color: #005e00;">"new"</span>)))
+</pre>
+</div>
+
+<p>
+and also added a keybinding:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-elisp"><span style="color: #8f0075; font-style: italic;">:bind</span> (<span style="color: #8f0075; font-style: italic;">:map</span>
+       notmuch-common-keymap
+       (<span style="color: #005e00;">"G"</span> . spl/notmuch-poll-and-refresh))
+</pre>
+</div>
+</div>
+</div>
