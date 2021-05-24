@@ -13,11 +13,13 @@ On weekends, I like hiking in the Angeles National Forest. Unfortunately, COVID-
 Currently reading:
 - The Power Broker
 - The End of Policing
-- Getting to Yes
 - Steve Jobs
 - Only the Paranoid Survive
+- The Obelisk Gate
 
 Recently read:
+- The Fifth Season
+- Getting to Yes
 - Never Split the Difference
 - PureScript by Example
 - The New Jim Crow
